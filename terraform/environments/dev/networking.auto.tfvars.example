@@ -1,0 +1,7 @@
+vpc_name                      = "your-vpc-name"
+subnet_name                   = "your-subnet-name"
+subnet_cidr                   = "your-subnet-cidr"
+pods_secondary_range_name     = "your-pods-range-name"
+pods_secondary_cidr           = "your-pods-secondary-cidr"
+services_secondary_range_name = "your-services-range-name"
+services_secondary_cidr       = "your-services-secondary-cidr"

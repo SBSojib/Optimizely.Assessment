@@ -1,0 +1,4 @@
+project_id                  = "your-project-id"
+terraform_state_bucket_name = "your-terraform-state-bucket-name"
+region                      = "your-region"
+environment                 = "your-environment"

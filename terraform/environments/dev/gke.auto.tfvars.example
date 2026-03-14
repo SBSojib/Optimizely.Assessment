@@ -1,0 +1,7 @@
+gke_cluster_name           = "your-cluster-name"
+gke_node_pool_name         = "your-node-pool-name"
+gke_machine_type           = "your-machine-type"
+gke_node_count             = 2 # Example value
+gke_disk_size_gb           = 50 # Example value
+gke_disk_type              = "your-disk-type"
+gke_master_ipv4_cidr_block = "your-master-cidr"

@@ -1,0 +1,3 @@
+hello_service_namespace         = "your-namespace"
+hello_service_service_account   = "your-service-account"
+artifact_registry_repository_id = "your-repo-id"

@@ -1,0 +1,5 @@
+project_id    = "your-project-id"
+region        = "your-region"
+zone          = "your-zone"
+environment   = "dev"
+naming_prefix = "your-naming-prefix"
