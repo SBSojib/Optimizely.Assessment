@@ -35,7 +35,8 @@ jobs:
       #
       # No service-account JSON keys are used.
       # GitHub exchanges its OIDC token for a short-lived GCP access token by
-      # impersonating GCP_SERVICE_ACCOUNT through the configured WIF pool/provider.
+      # impersonating the deployer SA through the configured WIF pool/provider.
+      # Required environment secrets (dev): WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT.
       - name: Authenticate to GCP
         id: auth
         uses: google-github-actions/auth@v2
