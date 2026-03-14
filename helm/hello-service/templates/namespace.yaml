@@ -1,4 +1,5 @@
-{{- if (.Values.createNamespace | default true) }}
+{{- $create := .Values.createNamespace | default true }}
+{{- if and $create (ne (toString $create) "false") }}
 apiVersion: v1
 kind: Namespace
 metadata:
