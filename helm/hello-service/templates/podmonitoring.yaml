@@ -1,9 +1,10 @@
-{{- if .Values.metrics.enabled }}
+{{- $metrics := .Values.metrics | default dict }}
+{{- if $metrics.enabled }}
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
   name: {{ include "hello-service.fullname" . }}
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Values.namespace | default "default" }}
   labels:
     {{- include "hello-service.labels" . | nindent 4 }}
 spec:
@@ -11,7 +12,7 @@ spec:
     matchLabels:
       {{- include "hello-service.selectorLabels" . | nindent 6 }}
   endpoints:
-    - port: {{ .Values.metrics.portName }}
-      interval: {{ .Values.metrics.interval }}
-      path: {{ .Values.metrics.path }}
+    - port: {{ $metrics.portName | default "http" }}
+      interval: {{ $metrics.interval | default "30s" }}
+      path: {{ $metrics.path | default "/metrics" }}
 {{- end }}

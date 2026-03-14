@@ -43,10 +43,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 ServiceAccount name.
 */}}
 {{- define "hello-service.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "hello-service.fullname" .) .Values.serviceAccount.name }}
+{{- $sa := .Values.serviceAccount | default dict }}
+{{- if $sa.create }}
+{{- default (include "hello-service.fullname" .) $sa.name }}
 {{- else }}
-{{- default "default" .Values.serviceAccount.name }}
+{{- default "default" $sa.name }}
 {{- end }}
 {{- end }}
 
@@ -54,9 +55,11 @@ ServiceAccount name.
 Google service account email used for Workload Identity.
 */}}
 {{- define "hello-service.gcpServiceAccountEmail" -}}
-{{- if .Values.serviceAccount.gcpServiceAccount -}}
-{{- .Values.serviceAccount.gcpServiceAccount -}}
+{{- $sa := .Values.serviceAccount | default dict }}
+{{- $global := .Values.global | default dict }}
+{{- if $sa.gcpServiceAccount -}}
+{{- $sa.gcpServiceAccount -}}
 {{- else -}}
-{{- printf "%s@%s.iam.gserviceaccount.com" .Values.serviceAccount.gcpServiceAccountName .Values.global.projectId -}}
+{{- printf "%s@%s.iam.gserviceaccount.com" ($sa.gcpServiceAccountName | default "default") ($global.projectId | default "default") -}}
 {{- end -}}
 {{- end }}

@@ -1,13 +1,20 @@
 {{- $svc := .Values.service | default dict }}
+{{- $img := .Values.image | default dict }}
+{{- $probes := .Values.probes | default dict }}
+{{- $readiness := $probes.readiness | default dict }}
+{{- $liveness := $probes.liveness | default dict }}
+{{- $resources := .Values.resources | default dict }}
+{{- $podSec := .Values.podSecurityContext | default dict }}
+{{- $containerSec := .Values.containerSecurityContext | default dict }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "hello-service.fullname" . }}
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Values.namespace | default "default" }}
   labels:
     {{- include "hello-service.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.replicaCount | default 1 }}
   selector:
     matchLabels:
       {{- include "hello-service.selectorLabels" . | nindent 6 }}
@@ -15,16 +22,17 @@ spec:
     metadata:
       labels:
         {{- include "hello-service.selectorLabels" . | nindent 8 }}
-      {{- if .Values.metrics.enabled }}
+      {{- $metrics := .Values.metrics | default dict }}
+      {{- if $metrics.enabled }}
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "{{ $svc.targetPort | default 8080 }}"
-        prometheus.io/path: "{{ .Values.metrics.path }}"
+        prometheus.io/path: "{{ $metrics.path | default "/metrics" }}"
       {{- end }}
     spec:
       serviceAccountName: {{ include "hello-service.serviceAccountName" . }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml $podSec | nindent 8 }}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -41,10 +49,10 @@ spec:
               {{- include "hello-service.selectorLabels" . | nindent 14 }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ $img.repository | default "hello-service" }}:{{ $img.tag | default "latest" }}"
+          imagePullPolicy: {{ $img.pullPolicy | default "IfNotPresent" }}
           securityContext:
-            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+            {{- toYaml $containerSec | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ $svc.targetPort | default 8080 }}
@@ -56,15 +64,15 @@ spec:
                   fieldPath: metadata.name
           readinessProbe:
             httpGet:
-              path: {{ .Values.probes.readiness.path }}
+              path: {{ $readiness.path | default "/health" }}
               port: http
-            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
-            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            initialDelaySeconds: {{ $readiness.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ $readiness.periodSeconds | default 10 }}
           livenessProbe:
             httpGet:
-              path: {{ .Values.probes.liveness.path }}
+              path: {{ $liveness.path | default "/health" }}
               port: http
-            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
-            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            initialDelaySeconds: {{ $liveness.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ $liveness.periodSeconds | default 15 }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml $resources | nindent 12 }}
