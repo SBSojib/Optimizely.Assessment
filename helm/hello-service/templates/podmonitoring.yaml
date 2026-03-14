@@ -1,0 +1,17 @@
+{{- if .Values.metrics.enabled }}
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: {{ include "hello-service.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "hello-service.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "hello-service.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: {{ .Values.metrics.portName }}
+      interval: {{ .Values.metrics.interval }}
+      path: {{ .Values.metrics.path }}
+{{- end }}
