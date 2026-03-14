@@ -87,7 +87,6 @@ jobs:
             --namespace "${{ vars.K8S_NAMESPACE }}" \
             --create-namespace \
             --set namespace="${{ vars.K8S_NAMESPACE }}" \
-            --set createNamespace=false \
             --set global.projectId="${{ vars.GCP_PROJECT_ID }}" \
             --set image.repository="${{ vars.ARTIFACT_REGISTRY_REPO }}" \
             --set image.tag="${{ github.sha }}" \

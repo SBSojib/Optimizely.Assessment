@@ -1,9 +1,0 @@
-{{- $create := .Values.createNamespace | default true }}
-{{- if and $create (ne (toString $create) "false") }}
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {{ .Values.namespace | default "default" }}
-  labels:
-    {{- include "hello-service.labels" . | nindent 4 }}
-{{- end }}
