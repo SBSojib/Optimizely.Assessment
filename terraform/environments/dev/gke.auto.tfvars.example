@@ -5,3 +5,11 @@ gke_node_count             = 2 # Example value
 gke_disk_size_gb           = 50 # Example value
 gke_disk_type              = "your-disk-type"
 gke_master_ipv4_cidr_block = "your-master-cidr"
+
+# Control plane access – restrict to VPN/office CIDRs in production
+gke_master_authorized_cidr_blocks = [
+  {
+    cidr_block   = "0.0.0.0/0"
+    display_name = "all-for-dev"
+  },
+]

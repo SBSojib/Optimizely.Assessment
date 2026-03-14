@@ -82,11 +82,12 @@ module "gke" {
   hello_service_service_account = var.hello_service_service_account
   labels                        = local.common_labels
 
-  machine_type           = var.gke_machine_type
-  node_count             = var.gke_node_count
-  disk_size_gb           = var.gke_disk_size_gb
-  disk_type              = var.gke_disk_type
-  master_ipv4_cidr_block = var.gke_master_ipv4_cidr_block
+  machine_type                  = var.gke_machine_type
+  node_count                    = var.gke_node_count
+  disk_size_gb                  = var.gke_disk_size_gb
+  disk_type                     = var.gke_disk_type
+  master_ipv4_cidr_block        = var.gke_master_ipv4_cidr_block
+  master_authorized_cidr_blocks = var.gke_master_authorized_cidr_blocks
 
   depends_on = [google_project_service.required]
 }

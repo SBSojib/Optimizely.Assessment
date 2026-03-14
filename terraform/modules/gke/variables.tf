@@ -88,6 +88,15 @@ variable "hello_service_service_account" {
   type        = string
 }
 
+variable "master_authorized_cidr_blocks" {
+  description = "CIDRs allowed to reach the GKE control plane public endpoint. Empty list disables the restriction."
+  type = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+  default = []
+}
+
 variable "labels" {
   description = "Labels to apply to all resources"
   type        = map(string)

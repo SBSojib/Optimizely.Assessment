@@ -102,6 +102,15 @@ variable "gke_master_ipv4_cidr_block" {
   type        = string
 }
 
+variable "gke_master_authorized_cidr_blocks" {
+  description = "CIDRs allowed to reach the GKE control plane public endpoint"
+  type = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+  default = []
+}
+
 variable "hello_service_namespace" {
   description = "Namespace used by the hello-service Helm release"
   type        = string

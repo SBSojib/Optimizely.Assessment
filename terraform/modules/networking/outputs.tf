@@ -42,3 +42,8 @@ output "nat_name" {
   description = "Name of the Cloud NAT gateway"
   value       = google_compute_router_nat.nat.name
 }
+
+output "subnet_self_link" {
+  description = "Self link of the GKE subnet"
+  value       = google_compute_subnetwork.gke.self_link
+}
