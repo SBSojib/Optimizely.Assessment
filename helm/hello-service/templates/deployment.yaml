@@ -1,3 +1,4 @@
+{{- $svc := .Values.service | default dict }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,7 +18,7 @@ spec:
       {{- if .Values.metrics.enabled }}
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "{{ .Values.service.targetPort }}"
+        prometheus.io/port: "{{ $svc.targetPort | default 8080 }}"
         prometheus.io/path: "{{ .Values.metrics.path }}"
       {{- end }}
     spec:
@@ -46,7 +47,7 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           ports:
             - name: http
-              containerPort: {{ .Values.service.targetPort }}
+              containerPort: {{ $svc.targetPort | default 8080 }}
               protocol: TCP
           env:
             - name: POD_NAME

@@ -6,11 +6,12 @@ metadata:
   labels:
     {{- include "hello-service.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
+  {{- $svc := .Values.service | default dict }}
+  type: {{ $svc.type | default "ClusterIP" }}
   selector:
     {{- include "hello-service.selectorLabels" . | nindent 4 }}
   ports:
-    - port: {{ .Values.service.port }}
+    - port: {{ $svc.port | default 80 }}
       targetPort: http
       protocol: TCP
       name: http
