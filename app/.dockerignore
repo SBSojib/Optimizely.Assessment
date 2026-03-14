@@ -6,4 +6,8 @@ obj/
 Dockerfile
 .dockerignore
 README.md
+# Exclude test projects so they are never sent as build context
 HelloService.Tests/
+**/HelloService.Tests/
+**/*.Tests/
+tests/
