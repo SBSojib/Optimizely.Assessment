@@ -11,3 +11,4 @@ HelloService.Tests/
 **/HelloService.Tests/
 **/*.Tests/
 tests/
+../tests/
