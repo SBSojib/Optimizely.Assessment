@@ -76,12 +76,15 @@ curl http://localhost:8080/metrics | grep hello_service_http_requests_total
    - Metric: `prometheus.googleapis.com/hello_service_http_requests_total/counter`
    - Filter by namespace: `hello-app`
 
-3. **Query via gcloud CLI:**
+3. **List metric descriptors via Cloud Monitoring API:**
+
+   The `gcloud monitoring` CLI has no `metrics list` subcommand. Use the REST API instead:
 
 ```bash
-gcloud monitoring metrics list \
-  --project=YOUR_PROJECT_ID \
-  --filter='metric.type=starts_with("prometheus.googleapis.com/hello_service")'
+# Get an access token, then list Prometheus metric descriptors
+TOKEN=$(gcloud auth print-access-token)
+curl -s -H "Authorization: Bearer ${TOKEN}" \
+  "https://monitoring.googleapis.com/v3/projects/YOUR_PROJECT_ID/metricDescriptors?filter=metric.type%3Dstarts_with(\"prometheus.googleapis.com/hello_service\")"
 ```
 
 ---
