@@ -14,9 +14,6 @@ jobs:
   dotnet:
     name: Build & Test (.NET 8)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: app
 
     steps:
       - uses: actions/checkout@v4
@@ -26,15 +23,14 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      # Targeting the test project restores both it and the app (via ProjectReference).
       - name: Restore dependencies
-        run: dotnet restore HelloService.Tests
+        run: dotnet restore Optimizely.Assessment.sln
 
       - name: Build
-        run: dotnet build HelloService.Tests --no-restore --configuration Release
+        run: dotnet build Optimizely.Assessment.sln --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test HelloService.Tests --no-build --configuration Release --logger "console;verbosity=normal"
+        run: dotnet test Optimizely.Assessment.sln --no-build --configuration Release --logger "console;verbosity=normal"
 
   # ── Job 2: Validate the Dockerfile compiles cleanly (no push) ─────────────────
   docker:

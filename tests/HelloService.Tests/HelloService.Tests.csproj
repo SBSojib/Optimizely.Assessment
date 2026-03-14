@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\HelloService.csproj" />
+    <ProjectReference Include="..\..\app\HelloService.csproj" />
   </ItemGroup>
 
 </Project>
