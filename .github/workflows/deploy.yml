@@ -86,6 +86,8 @@ jobs:
           helm upgrade --install "${{ vars.HELM_RELEASE }}" helm/hello-service \
             --namespace "${{ vars.K8S_NAMESPACE }}" \
             --create-namespace \
+            --set namespace="${{ vars.K8S_NAMESPACE }}" \
+            --set global.projectId="${{ vars.GCP_PROJECT_ID }}" \
             --set image.repository="${{ vars.ARTIFACT_REGISTRY_REPO }}" \
             --set image.tag="${{ github.sha }}" \
             --set serviceAccount.gcpServiceAccount="${{ secrets.HELLO_SERVICE_GSA_EMAIL }}" \
