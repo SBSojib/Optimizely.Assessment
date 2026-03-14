@@ -1,0 +1,6 @@
+# GitHub OIDC / Workload Identity Federation
+# Copy to github_oidc.auto.tfvars and set your values.
+
+github_owner       = "your-github-org-or-username"
+github_repository  = "your-repo-name"
+github_environment = "dev"

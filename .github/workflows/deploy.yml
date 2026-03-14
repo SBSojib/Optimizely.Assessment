@@ -1,0 +1,120 @@
+name: CD – Deploy to GKE
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Minimal permissions.
+# id-token: write  – required to exchange a GitHub OIDC token for a GCP access token.
+# contents: read   – required to checkout the repository.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Build → Push → Deploy (dev)
+    runs-on: ubuntu-latest
+
+    # Targets the GitHub Environment named "dev".
+    # All vars.* and secrets.* below are scoped to this environment.
+    environment: dev
+
+    # Immutable image reference used throughout this job.
+    env:
+      IMAGE: ${{ vars.ARTIFACT_REGISTRY_REPO }}:${{ github.sha }}
+
+    steps:
+      # ── 1. Source ─────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Keyless GCP auth via OIDC / Workload Identity Federation ───────────
+      #
+      # No service-account JSON keys are used.
+      # GitHub exchanges its OIDC token for a short-lived GCP access token by
+      # impersonating GCP_SERVICE_ACCOUNT through the configured WIF pool/provider.
+      - name: Authenticate to GCP
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      # ── 3. Container image ────────────────────────────────────────────────────
+      - name: Configure Docker for Artifact Registry
+        # Registers the AR hostname as a Docker credential helper using the
+        # gcloud access token obtained in the auth step above.
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: |
+          docker build \
+            --tag "${{ env.IMAGE }}" \
+            --tag "${{ vars.ARTIFACT_REGISTRY_REPO }}:latest" \
+            ./app
+
+      - name: Push image
+        # SHA tag is immutable and used for the actual deployment.
+        # latest tag is a mutable convenience alias (useful for local pulls / tooling).
+        run: |
+          docker push "${{ env.IMAGE }}"
+          docker push "${{ vars.ARTIFACT_REGISTRY_REPO }}:latest"
+
+      # ── 4. Kubernetes credentials ──────────────────────────────────────────────
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER }}
+          location:     ${{ vars.GKE_LOCATION }}
+          project_id:   ${{ vars.GCP_PROJECT_ID }}
+
+      # ── 5. Helm deploy ─────────────────────────────────────────────────────────
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "3.x"
+
+      - name: Helm upgrade / install
+        run: |
+          helm upgrade --install "${{ vars.HELM_RELEASE }}" helm/hello-service \
+            --namespace "${{ vars.K8S_NAMESPACE }}" \
+            --create-namespace \
+            --set image.repository="${{ vars.ARTIFACT_REGISTRY_REPO }}" \
+            --set image.tag="${{ github.sha }}" \
+            --set serviceAccount.gcpServiceAccount="${{ secrets.HELLO_SERVICE_GSA_EMAIL }}" \
+            --history-max 10 \
+            --atomic \
+            --timeout 5m
+        # --atomic   : waits for all pods to become ready; automatically rolls back
+        #              to the previous revision if the timeout is exceeded.
+        # --history-max 10 : caps stored Helm release revisions to avoid unbounded
+        #                    Secret accumulation in the cluster.
+
+      # ── 6. Smoke test ──────────────────────────────────────────────────────────
+      #
+      # Port-forward the ClusterIP Service to the runner and probe /health.
+      # This validates that the newly deployed pods are serving traffic correctly
+      # without requiring a public ingress or LoadBalancer.
+      - name: Smoke test (/health)
+        run: |
+          kubectl port-forward \
+            "svc/${{ vars.HELM_RELEASE }}" 8080:80 \
+            --namespace "${{ vars.K8S_NAMESPACE }}" &
+          PF_PID=$!
+
+          # Allow the tunnel a moment to establish before probing.
+          sleep 5
+
+          HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+            --max-time 10 http://localhost:8080/health)
+
+          kill "$PF_PID" 2>/dev/null || true
+
+          echo "Health endpoint returned HTTP $HTTP_STATUS"
+          [ "$HTTP_STATUS" -eq 200 ]

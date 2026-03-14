@@ -53,6 +53,53 @@ Infrastructure-as-code, containerised application deployment, and observability 
 | Helm | >= 3.x | Kubernetes deployment |
 | kubectl | latest | Cluster interaction |
 
+## CI/CD
+
+GitHub Actions handles both continuous integration and continuous deployment. No long-lived GCP service account keys are stored in GitHub — all GCP authentication is done via [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation).
+
+### Flow
+
+| Trigger | Workflow | What it does |
+|---------|----------|--------------|
+| Pull request → `main` | `ci.yml` | Build and test the .NET app; build the Docker image (no push); lint and render the Helm chart |
+| Push to `main` | `deploy.yml` | Build and push the image to Artifact Registry (tagged with `$GITHUB_SHA`); deploy to GKE via Helm; run a `/health` smoke test |
+
+```
+PR opened / updated
+  └── CI: dotnet build + test → docker build (no push) → helm lint
+                 ↓ all checks pass
+PR merged to main
+  └── CD: docker build + push (SHA tag) → helm upgrade --install → smoke test
+```
+
+### Authentication
+
+The CD workflow uses `google-github-actions/auth` with a WIF provider and service account email. GitHub exchanges a short-lived OIDC token for a GCP access token — no JSON key file is ever created or stored.
+
+### GitHub Environment: `dev`
+
+The CD workflow targets the GitHub Environment named **`dev`**. Variables and secrets must be configured there.
+
+**Variables** (`vars.*`)
+
+| Name | Example value |
+|------|---------------|
+| `GCP_PROJECT_ID` | `skynet-2026-code-test-sojib` |
+| `GCP_REGION` | `asia-south2` |
+| `GKE_CLUSTER` | `opti-devops-gke` |
+| `GKE_LOCATION` | `asia-south2-a` |
+| `ARTIFACT_REGISTRY_REPO` | `asia-south2-docker.pkg.dev/…/hello-service` |
+| `K8S_NAMESPACE` | `hello-app` |
+| `HELM_RELEASE` | `hello-service` |
+
+**Secrets** (`secrets.*`)
+
+| Name | Description |
+|------|-------------|
+| `WORKLOAD_IDENTITY_PROVIDER` | Full WIF provider resource name |
+| `GCP_SERVICE_ACCOUNT` | GSA email that GitHub Actions impersonates for GCP operations |
+| `HELLO_SERVICE_GSA_EMAIL` | Runtime GSA email annotated onto the Kubernetes `ServiceAccount` |
+
 ## End-to-End Setup
 
 ### Step 0 — Authenticate and Configure GCP

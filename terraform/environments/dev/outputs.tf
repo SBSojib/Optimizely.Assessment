@@ -44,3 +44,25 @@ output "subnet_name" {
   description = "Name of the GKE subnet"
   value       = module.networking.subnet_name
 }
+
+# --- GitHub OIDC / Workload Identity Federation ---
+
+output "workload_identity_provider_name" {
+  description = "Full WIF provider resource name — set as the WORKLOAD_IDENTITY_PROVIDER secret in the GitHub Actions 'dev' environment"
+  value       = module.github_oidc.workload_identity_provider_name
+}
+
+output "workload_identity_pool_name" {
+  description = "Full WIF pool resource name"
+  value       = module.github_oidc.workload_identity_pool_name
+}
+
+output "github_deployer_service_account_email" {
+  description = "Deployer SA email — set as the GCP_SERVICE_ACCOUNT secret in the GitHub Actions 'dev' environment"
+  value       = module.github_oidc.github_deployer_service_account_email
+}
+
+output "github_deployer_principal_set" {
+  description = "principalSet URI for the federated GitHub identity — useful for debugging WIF trust or adding further resource-level IAM bindings"
+  value       = module.github_oidc.github_deployer_principal_set
+}

@@ -62,3 +62,6 @@ app.MapGet("/hello", (HttpContext context) =>
 app.MapMetrics();
 
 app.Run();
+
+// Required for WebApplicationFactory<Program> in integration tests.
+public partial class Program { }

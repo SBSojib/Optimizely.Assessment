@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+# Minimal permissions: repo checkout only. No writes, no packages, no deployments.
+permissions:
+  contents: read
+
+jobs:
+  # ── Job 1: Restore, compile, and test the .NET app ───────────────────────────
+  dotnet:
+    name: Build & Test (.NET 8)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      # Targeting the test project restores both it and the app (via ProjectReference).
+      - name: Restore dependencies
+        run: dotnet restore HelloService.Tests
+
+      - name: Build
+        run: dotnet build HelloService.Tests --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test HelloService.Tests --no-build --configuration Release --logger "console;verbosity=normal"
+
+  # ── Job 2: Validate the Dockerfile compiles cleanly (no push) ─────────────────
+  docker:
+    name: Docker Build (no push)
+    runs-on: ubuntu-latest
+    needs: dotnet  # only attempt if the app itself builds
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build --tag hello-service:ci ./app
+
+  # ── Job 3: Lint and render the Helm chart (runs in parallel with dotnet) ──────
+  helm:
+    name: Helm Lint & Template
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "3.x"
+
+      - name: Lint chart
+        run: helm lint helm/hello-service
+
+      # Render all templates to catch missing keys, bad conditionals, etc.
+      - name: Render templates
+        run: helm template hello-service helm/hello-service

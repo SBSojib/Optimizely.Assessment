@@ -28,8 +28,10 @@ locals {
     "compute.googleapis.com",
     "container.googleapis.com",
     "iam.googleapis.com",
+    "iamcredentials.googleapis.com", # SA impersonation via WIF token exchange
     "logging.googleapis.com",
     "monitoring.googleapis.com",
+    "sts.googleapis.com",            # Security Token Service — required for WIF
   ])
 }
 
@@ -105,4 +107,24 @@ module "supporting_infra" {
   labels        = local.common_labels
 
   depends_on = [google_project_service.required]
+}
+
+# ---------------------------------------------------------------------------
+# GitHub OIDC: Workload Identity Federation for GitHub Actions
+# ---------------------------------------------------------------------------
+
+module "github_oidc" {
+  source = "../../modules/github_oidc"
+
+  project_id                      = var.project_id
+  naming_prefix                   = var.naming_prefix
+  environment                     = var.environment
+  github_owner                    = var.github_owner
+  github_repository               = var.github_repository
+  github_environment              = var.github_environment
+  region                          = var.region
+  artifact_registry_repository_id = var.artifact_registry_repository_id
+
+  # The AR repository must exist before the IAM binding can be created.
+  depends_on = [module.supporting_infra, google_project_service.required]
 }

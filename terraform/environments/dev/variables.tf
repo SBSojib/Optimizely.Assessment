@@ -127,3 +127,20 @@ variable "artifact_registry_repository_id" {
   description = "ID of the Artifact Registry Docker repository"
   type        = string
 }
+
+# --- GitHub OIDC / Workload Identity Federation ---
+
+variable "github_owner" {
+  description = "GitHub organisation or user that owns the repository (e.g., SBSojib)"
+  type        = string
+}
+
+variable "github_repository" {
+  description = "GitHub repository name, without the owner prefix (e.g., Optimizely.Assessment)"
+  type        = string
+}
+
+variable "github_environment" {
+  description = "GitHub Actions Environment name whose OIDC tokens are trusted. Must match the 'environment:' key in the workflow job (e.g., dev)."
+  type        = string
+}
