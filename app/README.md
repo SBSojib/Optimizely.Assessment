@@ -17,7 +17,7 @@ Minimal HTTP service (`hello-service`) built with ASP.NET Core 8, containerised 
 ```bash
 cd app
 
-IMAGE=asia-south2-docker.pkg.dev/skynet-2026-code-test-sojib/opti-devops-docker/hello-service
+IMAGE=YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/YOUR_REPO_NAME/hello-service
 TAG=v1
 
 dotnet build
@@ -27,7 +27,7 @@ docker build -t ${IMAGE}:${TAG} .
 ## 2. Authenticate Docker to Artifact Registry
 
 ```bash
-gcloud auth configure-docker asia-south2-docker.pkg.dev
+gcloud auth configure-docker YOUR_REGION-docker.pkg.dev
 ```
 
 ## 3. Push the image
@@ -39,9 +39,9 @@ docker push ${IMAGE}:${TAG}
 ## 4. Get GKE credentials
 
 ```bash
-gcloud container clusters get-credentials opti-devops-gke \
-  --zone asia-south2-a \
-  --project skynet-2026-code-test-sojib
+gcloud container clusters get-credentials YOUR_CLUSTER_NAME \
+  --zone YOUR_ZONE \
+  --project YOUR_PROJECT_ID
 ```
 
 ## 5. Deploy with Helm
@@ -50,7 +50,7 @@ gcloud container clusters get-credentials opti-devops-gke \
 HELLO_SERVICE_GSA=$(cd ../terraform/environments/dev && terraform output -raw hello_service_gsa_email)
 
 helm upgrade --install hello-service ../helm/hello-service \
-  --set global.projectId=skynet-2026-code-test-sojib \
+  --set global.projectId=YOUR_PROJECT_ID \
   --set serviceAccount.gcpServiceAccount=${HELLO_SERVICE_GSA} \
   --set image.tag=${TAG} \
   --wait
@@ -105,8 +105,8 @@ Expected response (values will differ):
 ```json
 {
   "message": "Hello from hello-service!",
-  "podName": "hello-service-6f7b8c9d5-x2k4p",
-  "traceId": "0HN3VQABC:00000001",
+  "podName": "hello-service-xxxxx-xxxxx",
+  "traceId": "TRACE_ID",
   "timestampUtc": "2026-03-13T16:05:00.0000000Z"
 }
 ```

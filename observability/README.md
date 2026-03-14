@@ -1,0 +1,217 @@
+# Phase 3 — Observability
+
+This document describes how `hello-service` is instrumented for metrics and logging in GKE, using GCP-native managed services.
+
+## Architecture overview
+
+| Concern | Approach | GCP service |
+|---------|----------|-------------|
+| **Metrics** | App exposes `/metrics`; GMP scrapes via `PodMonitoring` | Google Managed Service for Prometheus |
+| **Logs** | App writes structured JSON to stdout; GKE agent collects | Cloud Logging |
+
+No self-hosted Prometheus, Grafana, Loki, or Elasticsearch is required.
+
+## Directory contents
+
+| File | Purpose |
+|------|---------|
+| `README.md` | This document — full observability design and verification guide |
+| `podmonitoring.yaml` | Standalone GMP PodMonitoring manifest (also deployed via Helm chart) |
+| `values-observability.yaml` | Helm values overlay for observability configuration knobs |
+| `log-query-examples.md` | Ready-to-use Cloud Logging queries for troubleshooting |
+
+---
+
+## Metrics
+
+### How metrics are exposed
+
+The app uses [`prometheus-net`](https://github.com/prometheus-net/prometheus-net) to expose a `/metrics` endpoint on the same port as the application (8080).
+
+A custom counter is registered:
+
+```
+hello_service_http_requests_total{method, endpoint, status_code}
+```
+
+This counter increments on every request to business endpoints (`/hello`, etc.) and excludes internal paths (`/health`, `/metrics`) to avoid noise.
+
+Standard process-level metrics (CPU, memory, GC) are also exported automatically by `prometheus-net`.
+
+### How metrics are scraped
+
+The Helm chart deploys a **PodMonitoring** custom resource (`monitoring.googleapis.com/v1`), which is the GMP-native way to configure scraping in GKE. The cluster itself enables Managed Service for Prometheus in Terraform, so metric collection is provisioned declaratively rather than assumed to exist out of band.
+
+```yaml
+# Created by helm/hello-service/templates/podmonitoring.yaml
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hello-service
+  endpoints:
+    - port: http
+      interval: 30s
+      path: /metrics
+```
+
+GMP's managed collectors (running in `gmp-system` namespace) discover this resource and begin scraping automatically. No sidecar or additional operator is needed.
+
+Scraping is toggled via `metrics.enabled` in `values.yaml`.
+
+### Verify metrics are available
+
+1. **Port-forward and curl locally:**
+
+```bash
+kubectl port-forward svc/hello-service -n hello-app 8080:80
+curl http://localhost:8080/metrics | grep hello_service_http_requests_total
+```
+
+2. **Query in GCP Console (Cloud Monitoring → Metrics Explorer):**
+
+   - Go to **Monitoring → Metrics Explorer**
+   - Select resource type: **Prometheus Target**
+   - Metric: `prometheus.googleapis.com/hello_service_http_requests_total/counter`
+   - Filter by namespace: `hello-app`
+
+3. **Query via gcloud CLI:**
+
+```bash
+gcloud monitoring metrics list \
+  --project=YOUR_PROJECT_ID \
+  --filter='metric.type=starts_with("prometheus.googleapis.com/hello_service")'
+```
+
+---
+
+## Logs
+
+### How logs are emitted
+
+The `/hello` handler writes a flat JSON log line to stdout using `Console.WriteLine`:
+
+```json
+{
+  "severity": "INFO",
+  "message": "hello_request_handled",
+  "trace_id": "TRACE_ID",
+  "status_code": 200,
+  "method": "GET",
+  "path": "/hello",
+  "pod_name": "hello-service-xxxxx-xxxxx",
+  "timestamp_utc": "TIMESTAMP_UTC"
+}
+```
+
+**Why flat JSON to stdout?**
+GKE's built-in Fluent Bit agent parses JSON lines from container stdout into Cloud Logging `jsonPayload` fields. Writing flat JSON (instead of nested ILogger output) makes every field directly queryable without path traversal. The `severity` field is recognised by Cloud Logging to set the log entry severity level. This is the GCP-recommended pattern for structured logging.
+
+Framework logs (startup, errors) are also JSON-formatted via ASP.NET Core's `AddJsonConsole()`.
+
+### How to verify logs are queryable
+
+**GCP Console — Logs Explorer:**
+
+Navigate to **Logging → Logs Explorer** and run:
+
+```
+resource.type="k8s_container"
+resource.labels.namespace_name="hello-app"
+resource.labels.container_name="hello-service"
+jsonPayload.message="hello_request_handled"
+```
+
+---
+
+## Debrief walkthrough
+
+### 1. Generate traffic
+
+```bash
+kubectl port-forward svc/hello-service -n hello-app 8080:80 &
+
+# Single request
+curl http://localhost:8080/hello
+
+# Burst of 20 requests
+for i in $(seq 1 20); do curl -s http://localhost:8080/hello; done
+```
+
+### 2. Grab a trace_id
+
+```bash
+curl -s http://localhost:8080/hello | jq -r '.traceId'
+```
+
+Example output: `TRACE_ID`
+
+### 3. Filter logs by trace_id
+
+**Logs Explorer query:**
+
+```
+resource.type="k8s_container"
+resource.labels.namespace_name="hello-app"
+jsonPayload.trace_id="TRACE_ID"
+```
+
+**gcloud CLI:**
+
+```bash
+gcloud logging read \
+  'resource.type="k8s_container" AND resource.labels.namespace_name="hello-app" AND jsonPayload.trace_id="TRACE_ID"' \
+  --project=YOUR_PROJECT_ID \
+  --limit=5 \
+  --format=json
+```
+
+### 4. Verify metrics scraping
+
+**Confirm PodMonitoring is deployed:**
+
+```bash
+kubectl get podmonitoring -n hello-app
+```
+
+**Check metric in Cloud Monitoring:**
+
+1. Open **Monitoring → Metrics Explorer**
+2. Resource type: **Prometheus Target**
+3. Metric: `prometheus.googleapis.com/hello_service_http_requests_total/counter`
+4. Group by: `endpoint` to see per-path breakdown
+
+---
+
+## Files changed in Phase 3
+
+| File | Change |
+|------|--------|
+| `app/Program.cs` | Added metrics counter, structured JSON log, `/metrics` endpoint |
+| `app/HelloService.csproj` | Added `prometheus-net.AspNetCore` 8.2.1 |
+| `helm/hello-service/values.yaml` | Added `metrics` configuration block |
+| `helm/hello-service/templates/deployment.yaml` | Added Prometheus pod annotations plus pod HA and security hardening |
+| `helm/hello-service/templates/podmonitoring.yaml` | **New** — GMP PodMonitoring resource |
+| `helm/hello-service/templates/pdb.yaml` | **New** — PodDisruptionBudget for safer rollouts and node drains |
+| `observability/README.md` | **New** — this document |
+
+## Rebuilding after Phase 3 changes
+
+```bash
+cd app
+
+IMAGE=YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/YOUR_REPO_NAME/hello-service
+TAG=v1
+
+docker build -t ${IMAGE}:${TAG} .
+docker push ${IMAGE}:${TAG}
+
+HELLO_SERVICE_GSA=$(cd ../terraform/environments/dev && terraform output -raw hello_service_gsa_email)
+
+helm upgrade --install hello-service ../helm/hello-service \
+  --set global.projectId=YOUR_PROJECT_ID \
+  --set serviceAccount.gcpServiceAccount=${HELLO_SERVICE_GSA} \
+  --set image.tag=${TAG} \
+  --wait
+```

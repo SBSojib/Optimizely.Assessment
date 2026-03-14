@@ -1,0 +1,24 @@
+# Standalone PodMonitoring manifest for reference / manual apply.
+# The Helm chart (helm/hello-service/templates/podmonitoring.yaml)
+# deploys this resource automatically when metrics.enabled=true.
+#
+# Use this file if you need to apply PodMonitoring independently of
+# Helm, e.g. during debugging or for teams that deploy via kubectl:
+#
+#   kubectl apply -f observability/podmonitoring.yaml
+#
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: hello-service
+  namespace: hello-app
+  labels:
+    app.kubernetes.io/name: hello-service
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hello-service
+  endpoints:
+    - port: http
+      interval: 30s
+      path: /metrics
