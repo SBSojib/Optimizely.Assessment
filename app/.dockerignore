@@ -6,3 +6,4 @@ obj/
 Dockerfile
 .dockerignore
 README.md
+HelloService.Tests/
