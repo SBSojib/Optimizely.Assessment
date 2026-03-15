@@ -132,17 +132,19 @@ resource "google_project_iam_member" "github_deployer_gke" {
 }
 
 # ---------------------------------------------------------------------------
-# GitHub Actions drift-detection service account (read-only)
+# GitHub Actions drift-detection service account
 # ---------------------------------------------------------------------------
 # Used by the Terraform drift detection workflow. Holds roles/viewer and
-# read access to the Terraform state bucket only. No deploy or write rights.
+# read access to the Terraform state bucket. We also grant container.developer
+# as a diagnostic step to test whether the drift seen in CI is caused by the
+# lower-privilege identity observing GKE differently than local/deployer runs.
 # Same WIF pool/provider — workflows choose which SA to impersonate via secrets.
 # ---------------------------------------------------------------------------
 
 resource "google_service_account" "github_drift" {
   account_id   = "${var.naming_prefix}-gh-drift"
   display_name = "GitHub Actions drift detection (${var.environment})"
-  description  = "Read-only SA for terraform plan (drift detection). Impersonated via WIF. No long-lived key."
+  description  = "SA for terraform drift detection. Impersonated via WIF. Includes temporary broader GKE access for diagnostics."
   project      = var.project_id
 }
 
@@ -155,6 +157,12 @@ resource "google_service_account_iam_member" "github_drift_wif_impersonation" {
 resource "google_project_iam_member" "github_drift_viewer" {
   project = var.project_id
   role    = "roles/viewer"
+  member  = "serviceAccount:${google_service_account.github_drift.email}"
+}
+
+resource "google_project_iam_member" "github_drift_gke_diagnostic" {
+  project = var.project_id
+  role    = "roles/container.developer"
   member  = "serviceAccount:${google_service_account.github_drift.email}"
 }
 
