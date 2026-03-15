@@ -3,7 +3,7 @@ name: CD – Deploy to GKE
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 # Minimal permissions.
@@ -105,19 +105,40 @@ jobs:
       # This validates that the newly deployed pods are serving traffic correctly
       # without requiring a public ingress or LoadBalancer.
       - name: Smoke test (/health)
+        id: smoke-test
         run: |
           kubectl port-forward \
             "svc/${{ vars.HELM_RELEASE }}" 8080:80 \
-            --namespace "${{ vars.K8S_NAMESPACE }}" &
+            --namespace "${{ vars.K8S_NAMESPACE }}" \
+            &> /tmp/pf.log &
           PF_PID=$!
 
-          # Allow the tunnel a moment to establish before probing.
-          sleep 5
-
-          HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
-            --max-time 10 http://localhost:8080/health)
+          # Wait for the tunnel to be reachable (retry up to ~60s).
+          HTTP_STATUS=""
+          for i in $(seq 1 30); do
+            if HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+              --max-time 5 --connect-timeout 2 http://localhost:8080/health 2>/dev/null); then
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Port-forward log:"
+              cat /tmp/pf.log
+              kill "$PF_PID" 2>/dev/null || true
+              exit 1
+            fi
+            sleep 2
+          done
 
           kill "$PF_PID" 2>/dev/null || true
 
           echo "Health endpoint returned HTTP $HTTP_STATUS"
           [ "$HTTP_STATUS" -eq 200 ]
+
+      # Roll back to the previous revision when the smoke test fails so a broken
+      # deploy does not stay live. Only runs when the smoke test step failed
+      # (not on build/Helm failures, where there is nothing to revert).
+      - name: Rollback on smoke test failure
+        if: failure() && steps.smoke-test.outcome == 'failure'
+        run: |
+          helm rollback "${{ vars.HELM_RELEASE }}" --namespace "${{ vars.K8S_NAMESPACE }}"
+          echo "Rolled back ${{ vars.HELM_RELEASE }} to previous revision."

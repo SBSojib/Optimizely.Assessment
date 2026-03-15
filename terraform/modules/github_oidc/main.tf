@@ -6,10 +6,14 @@
 # ---------------------------------------------------------------------------
 
 resource "google_iam_workload_identity_pool" "github" {
-  workload_identity_pool_id = "${var.naming_prefix}-gh-pool"
+  workload_identity_pool_id = "${var.naming_prefix}-gh-pool${var.pool_id_suffix}"
   display_name              = "GitHub Actions pool"
   description               = "WIF pool for GitHub Actions CI/CD (${var.github_owner}/${var.github_repository})"
   project                   = var.project_id
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -26,7 +30,7 @@ resource "google_iam_workload_identity_pool" "github" {
 
 resource "google_iam_workload_identity_pool_provider" "github" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
-  workload_identity_pool_provider_id = "${var.naming_prefix}-github"
+  workload_identity_pool_provider_id = "${var.naming_prefix}-github${var.pool_id_suffix}"
   display_name                       = "GitHub Actions OIDC"
   description                        = "Trusts GitHub OIDC tokens for ${var.github_owner}/${var.github_repository}, environment: ${var.github_environment}"
   project                            = var.project_id
@@ -53,6 +57,10 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   oidc {
     # GitHub's well-known OIDC issuer for Actions.
     issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
