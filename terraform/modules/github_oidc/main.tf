@@ -158,7 +158,7 @@ resource "google_project_iam_member" "github_drift_viewer" {
   member  = "serviceAccount:${google_service_account.github_drift.email}"
 }
 
-# Read access to Terraform state so drift workflow can run terraform init + plan.
+# State bucket: read-only (plan uses -lock=false so no lock create/delete needed).
 resource "google_storage_bucket_iam_member" "github_drift_state" {
   count  = var.terraform_state_bucket_name != null ? 1 : 0
   bucket = var.terraform_state_bucket_name
