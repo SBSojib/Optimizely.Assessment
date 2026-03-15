@@ -9,6 +9,7 @@ This repository provisions the foundational GCP infrastructure for the Optimizel
 - **GKE Standard cluster** (zonal, private nodes, Workload Identity enabled)
 - **Artifact Registry** Docker repository for container images
 - **GCS bucket** for Terraform remote state (bootstrapped separately)
+- **Cloud Monitoring alerting** — alert policies and email notification channel for app/platform health
 
 ## Repository Structure
 
@@ -21,7 +22,8 @@ terraform/
 ├── modules/
 │   ├── networking/           # VPC, subnet, Cloud Router, Cloud NAT
 │   ├── gke/                  # GKE cluster, node pool, node SA, IAM
-│   └── supporting_infra/     # Artifact Registry
+│   ├── supporting_infra/     # Artifact Registry
+│   └── alerting/             # Cloud Monitoring alert policies, notification channel
 ├── environments/
 │   └── dev/                  # Step 2: root module that orchestrates all modules
 │       ├── main.tf
@@ -31,6 +33,7 @@ terraform/
 │       ├── networking.auto.tfvars.example
 │       ├── gke.auto.tfvars.example
 │       ├── apps.auto.tfvars.example
+│       ├── alerting.auto.tfvars.example
 │       └── backend.hcl.example
 └── README.md
 ```
@@ -94,6 +97,7 @@ cp common.auto.tfvars.example common.auto.tfvars
 cp networking.auto.tfvars.example networking.auto.tfvars
 cp gke.auto.tfvars.example gke.auto.tfvars
 cp apps.auto.tfvars.example apps.auto.tfvars
+cp alerting.auto.tfvars.example alerting.auto.tfvars
 cp backend.hcl.example backend.hcl
 
 # Initialise with the GCS backend
@@ -172,6 +176,9 @@ available:
 | `hello_service_gsa_email`      | GSA bound to the app's Kubernetes SA       |
 | `vpc_name`                     | Name of the VPC network                    |
 | `subnet_name`                  | Name of the GKE subnet                     |
+| `alert_notification_channel`   | Cloud Monitoring notification channel      |
+
+**Alerting:** Set `alert_notification_email` in `alerting.auto.tfvars`; after apply, verify the email channel in **Monitoring → Alerting → Edit notification channels**. See `terraform/local.README.md` for the full alerting section.
 
 ## Cleanup
 

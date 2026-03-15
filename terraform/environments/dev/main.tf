@@ -130,3 +130,20 @@ module "github_oidc" {
   # The AR repository must exist before the IAM binding can be created.
   depends_on = [module.supporting_infra, google_project_service.required]
 }
+
+# ---------------------------------------------------------------------------
+# Alerting: Cloud Monitoring alert policies + notification channel
+# ---------------------------------------------------------------------------
+
+module "alerting" {
+  source = "../../modules/alerting"
+
+  project_id               = var.project_id
+  naming_prefix            = var.naming_prefix
+  environment              = var.environment
+  cluster_name             = var.gke_cluster_name
+  app_namespace            = var.hello_service_namespace
+  alert_notification_email = var.alert_notification_email
+
+  depends_on = [google_project_service.required]
+}

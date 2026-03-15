@@ -8,6 +8,7 @@ This document describes how `hello-service` is instrumented for metrics and logg
 |---------|----------|-------------|
 | **Metrics** | App exposes `/metrics`; GMP scrapes via `PodMonitoring` | Google Managed Service for Prometheus |
 | **Logs** | App writes structured JSON to stdout; GKE agent collects | Cloud Logging |
+| **Alerting** | Alert policies + email channel defined in Terraform | Cloud Monitoring |
 
 No self-hosted Prometheus, Grafana, Loki, or Elasticsearch is required.
 
@@ -59,6 +60,20 @@ spec:
 GMP's managed collectors (running in `gmp-system` namespace) discover this resource and begin scraping automatically. No sidecar or additional operator is needed.
 
 Scraping is toggled via `metrics.enabled` in `values.yaml`.
+
+---
+
+## Alerting
+
+Alerting is implemented as a Terraform module (`terraform/modules/alerting/`) and creates Cloud Monitoring alert policies plus an email notification channel. The policies are scoped to the hello-service namespace and cluster.
+
+| Alert | Condition | Purpose |
+| ----- | --------- | ------- |
+| **Container Restart Rate** | Restarts > 3 in 10 min | CrashLoopBackOff, OOMKilled, failing health probes |
+| **Memory Utilization High** | Container memory > 85% of limit for 5 min | Leading indicator before OOMKill |
+| **Error Log Rate** | Error logs (severity ≥ ERROR) > 5 in 5 min | Application exceptions, dependency failures |
+
+**Setup:** Configure `alert_notification_email` in `terraform/environments/dev/alerting.auto.tfvars`, then run `terraform apply` in `terraform/environments/dev`. After apply, verify the email channel in **Monitoring → Alerting → Edit notification channels** so notifications are delivered. See `terraform/local.README.md` for full details.
 
 ### Verify metrics are available
 

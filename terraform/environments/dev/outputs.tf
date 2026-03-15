@@ -71,3 +71,10 @@ output "github_drift_service_account_email" {
   description = "Drift-detection SA email — set as DRIFT_GCP_SERVICE_ACCOUNT secret in the GitHub Actions 'dev' environment for the terraform-drift workflow"
   value       = module.github_oidc.github_drift_service_account_email
 }
+
+# --- Alerting ---
+
+output "alert_notification_channel" {
+  description = "Cloud Monitoring notification channel resource name"
+  value       = module.alerting.notification_channel_name
+}

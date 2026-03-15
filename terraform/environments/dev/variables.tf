@@ -155,3 +155,10 @@ variable "terraform_state_bucket_name" {
   description = "Name of the GCS bucket used for Terraform state (backend). Required for granting the drift-detection SA read access. Must match the bucket in backend.hcl."
   type        = string
 }
+
+# --- Alerting ---
+
+variable "alert_notification_email" {
+  description = "Email address for Cloud Monitoring alert notifications. The recipient must verify the address in the GCP Console after the first apply."
+  type        = string
+}
