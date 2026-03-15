@@ -103,7 +103,8 @@ resource "google_container_cluster" "primary" {
     ignore_changes = [
       monitoring_config,
       release_channel,   # master version drifts with REGULAR channel
-      resource_labels,   # GCP/addons can add labels; we set var.labels but API may add more
+      resource_labels,   # GCP/addons can add labels
+      logging_config,    # API returns default logging; we do not set it explicitly
     ]
   }
 }

@@ -101,12 +101,14 @@ jobs:
               echo "Infrastructure has diverged from the Terraform configuration." >> "$GITHUB_STEP_SUMMARY"
               echo "" >> "$GITHUB_STEP_SUMMARY"
               echo "**Changed attribute(s):**" >> "$GITHUB_STEP_SUMMARY"
-              (cd "${TF_ROOT}" && terraform show -json tfplan.binary 2>/dev/null | jq -r '
+              CHANGED=$(cd "${TF_ROOT}" && terraform show -json tfplan.binary 2>/dev/null | jq -r '
                 .resource_changes[]? | select((.change.actions | index("update")) != null) |
                 . as $r | .address as $addr |
-                ((.change.after // {} | keys) + (.change.before // {} | keys) + (.change.after_unknown // {} | keys) | unique) as $keys |
-                $keys[] | select(($r.change.before[.] != $r.change.after[.]) or ($r.change.after_unknown[.] != null)) | "\($addr): .\(.)"
-              ' 2>/dev/null) >> "$GITHUB_STEP_SUMMARY" || echo "(could not extract; see full plan below)" >> "$GITHUB_STEP_SUMMARY"
+                ((.change.after // {} | keys) + (.change.before // {} | keys) + ((.change.after_unknown // {} | keys)) | unique) as $keys |
+                $keys[] | select(($r.change.before[.] | tostring) != ($r.change.after[.] | tostring) or $r.change.after_unknown[.] != null) | "\($addr): .\(.)"
+              ' 2>/dev/null)
+              echo "$CHANGED" >> "$GITHUB_STEP_SUMMARY"
+              [ -z "$CHANGED" ] && echo "_Could not list changed keys. Add any attribute shown in the full plan to lifecycle ignore_changes in the GKE module._" >> "$GITHUB_STEP_SUMMARY"
               echo "" >> "$GITHUB_STEP_SUMMARY"
               echo "<details><summary>Full plan output (click to expand)</summary>" >> "$GITHUB_STEP_SUMMARY"
               echo '```' >> "$GITHUB_STEP_SUMMARY"
