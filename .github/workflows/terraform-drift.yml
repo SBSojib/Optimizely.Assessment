@@ -80,9 +80,11 @@ jobs:
         working-directory: ${{ env.TF_ROOT }}
         run: |
           set +e
-          terraform plan -detailed-exitcode -input=false -no-color -lock=false 2>&1 | tee plan.txt
-          PLAN_EXIT=${PIPESTATUS[0]}
+          terraform plan -detailed-exitcode -input=false -no-color -lock=false -out=tfplan.binary
+          PLAN_EXIT=$?
           echo "exitcode=$PLAN_EXIT" >> "$GITHUB_OUTPUT"
+          # Full diff (terraform show reveals every changed attribute; plan output hides some)
+          terraform show -no-color tfplan.binary > plan.txt 2>/dev/null || true
 
       - name: Evaluate result
         env:

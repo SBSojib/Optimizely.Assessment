@@ -98,9 +98,12 @@ resource "google_container_cluster" "primary" {
 
   resource_labels = var.labels
 
-  # GKE API often returns extra fields (e.g. monitoring_config) that cause benign drift.
+  # GKE API returns extra/computed fields that cause benign drift; ignore read-only / API-managed.
   lifecycle {
-    ignore_changes = [monitoring_config]
+    ignore_changes = [
+      monitoring_config,
+      release_channel, # master version drifts with REGULAR channel; we don't pin it
+    ]
   }
 }
 
