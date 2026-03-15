@@ -30,7 +30,7 @@ name: Terraform Drift Detection
 
 on:
   schedule:
-    - cron: "0 6 * * 1-5" # Weekdays 06:00 UTC
+    - cron: "0 6 * * *"   # Daily 06:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -80,7 +80,8 @@ jobs:
         working-directory: ${{ env.TF_ROOT }}
         run: |
           set +e
-          terraform plan -detailed-exitcode -input=false -no-color
+          # -lock=false: drift SA has read-only bucket access; no lock file create/delete
+          terraform plan -detailed-exitcode -input=false -no-color -lock=false
           PLAN_EXIT=$?
           echo "exitcode=$PLAN_EXIT" >> "$GITHUB_OUTPUT"
 
@@ -101,9 +102,9 @@ jobs:
               exit 1
               ;;
             *)
-              echo "### Plan error" >> "$GITHUB_STEP_SUMMARY"
-              echo "Terraform plan failed. Check the logs for details." >> "$GITHUB_STEP_SUMMARY"
-              echo "::error::Terraform plan encountered an error."
+              echo "### Plan error (exit code $EXIT_CODE)" >> "$GITHUB_STEP_SUMMARY"
+              echo "Terraform plan failed. Expand the **Terraform Plan (detect drift)** step above for the error (e.g. variable, provider, or permission)." >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::Terraform plan failed (exit $EXIT_CODE). See the 'Terraform Plan (detect drift)' step for the error."
               exit 1
               ;;
           esac
