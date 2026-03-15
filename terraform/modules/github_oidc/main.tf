@@ -158,10 +158,24 @@ resource "google_project_iam_member" "github_drift_viewer" {
   member  = "serviceAccount:${google_service_account.github_drift.email}"
 }
 
-# State bucket: read-only (plan uses -lock=false so no lock create/delete needed).
+# Custom role: read state objects + read bucket IAM (so plan can refresh google_storage_bucket_iam_member).
+resource "google_project_iam_custom_role" "terraform_state_read" {
+  count       = var.terraform_state_bucket_name != null ? 1 : 0
+  role_id     = "terraformStateRead"
+  title       = "Terraform state read + getIamPolicy"
+  description = "Read state objects and bucket IAM for drift plan refresh. No setIamPolicy."
+  project     = var.project_id
+  permissions = [
+    "storage.objects.get",
+    "storage.objects.list",
+    "storage.buckets.getIamPolicy",
+  ]
+}
+
+# State bucket: grant drift SA the role above (plan uses -lock=false).
 resource "google_storage_bucket_iam_member" "github_drift_state" {
   count  = var.terraform_state_bucket_name != null ? 1 : 0
   bucket = var.terraform_state_bucket_name
-  role   = "roles/storage.objectViewer"
+  role   = "projects/${var.project_id}/roles/${google_project_iam_custom_role.terraform_state_read[0].role_id}"
   member = "serviceAccount:${google_service_account.github_drift.email}"
 }
