@@ -80,14 +80,14 @@ jobs:
         working-directory: ${{ env.TF_ROOT }}
         run: |
           set +e
-          # -lock=false: drift SA has read-only bucket access; no lock file create/delete
-          terraform plan -detailed-exitcode -input=false -no-color -lock=false
-          PLAN_EXIT=$?
+          terraform plan -detailed-exitcode -input=false -no-color -lock=false 2>&1 | tee plan.txt
+          PLAN_EXIT=${PIPESTATUS[0]}
           echo "exitcode=$PLAN_EXIT" >> "$GITHUB_OUTPUT"
 
       - name: Evaluate result
         env:
           EXIT_CODE: ${{ steps.plan.outputs.exitcode }}
+          TF_ROOT: ${{ env.TF_ROOT }}
         run: |
           case "$EXIT_CODE" in
             0)
@@ -97,8 +97,13 @@ jobs:
             2)
               echo "### Drift detected" >> "$GITHUB_STEP_SUMMARY"
               echo "Infrastructure has diverged from the Terraform configuration." >> "$GITHUB_STEP_SUMMARY"
-              echo "Review the workflow logs for the full plan output." >> "$GITHUB_STEP_SUMMARY"
-              echo "::error::DRIFT DETECTED — review the plan output for details."
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "<details><summary>Plan output (click to expand)</summary>" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              cat "${TF_ROOT}/plan.txt" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::DRIFT DETECTED — review the plan output above for the exact diff."
               exit 1
               ;;
             *)
