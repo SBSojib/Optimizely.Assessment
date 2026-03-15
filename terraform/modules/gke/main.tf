@@ -97,6 +97,11 @@ resource "google_container_cluster" "primary" {
   deletion_protection      = var.environment == "prod"
 
   resource_labels = var.labels
+
+  # GKE API often returns extra fields (e.g. monitoring_config) that cause benign drift.
+  lifecycle {
+    ignore_changes = [monitoring_config]
+  }
 }
 
 # ---------------------------------------------------------------------------
