@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
     branches:
-      - main
+      - master
 
 # Minimal permissions: repo checkout only. No writes, no packages, no deployments.
 permissions:

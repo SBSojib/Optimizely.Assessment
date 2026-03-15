@@ -124,6 +124,7 @@ module "github_oidc" {
   github_environment              = var.github_environment
   region                          = var.region
   artifact_registry_repository_id = var.artifact_registry_repository_id
+  pool_id_suffix                  = var.github_oidc_pool_id_suffix
 
   # The AR repository must exist before the IAM binding can be created.
   depends_on = [module.supporting_infra, google_project_service.required]

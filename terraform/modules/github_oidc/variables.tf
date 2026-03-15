@@ -8,6 +8,12 @@ variable "naming_prefix" {
   type        = string
 }
 
+variable "pool_id_suffix" {
+  description = "Optional suffix for Workload Identity pool and provider IDs. Use to avoid 409 when the original pool is soft-deleted (e.g. \"-v2\"). Leave empty for normal use."
+  type        = string
+  default     = ""
+}
+
 variable "environment" {
   description = "Deployment environment name (e.g., dev). Used in resource display names."
   type        = string

@@ -144,3 +144,9 @@ variable "github_environment" {
   description = "GitHub Actions Environment name whose OIDC tokens are trusted. Must match the 'environment:' key in the workflow job (e.g., dev)."
   type        = string
 }
+
+variable "github_oidc_pool_id_suffix" {
+  description = "Optional suffix for WIF pool/provider IDs. Set to \"-v2\" (or similar) to work around 409 when the original pool is soft-deleted and undelete fails. Update GitHub Actions secrets from terraform output after apply."
+  type        = string
+  default     = ""
+}

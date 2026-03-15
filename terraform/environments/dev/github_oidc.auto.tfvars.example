@@ -4,3 +4,5 @@
 github_owner       = "your-github-org-or-username"
 github_repository  = "your-repo-name"
 github_environment = "dev"
+
+github_oidc_pool_id_suffix = "-v2"
