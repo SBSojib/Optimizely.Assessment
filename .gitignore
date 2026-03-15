@@ -4,6 +4,7 @@
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+ci.auto.tfvars
 *.hcl
 !*.hcl.example
 crash.log

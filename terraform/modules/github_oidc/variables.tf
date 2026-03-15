@@ -43,3 +43,9 @@ variable "artifact_registry_repository_id" {
   description = "ID of the Artifact Registry Docker repository the deployer SA is allowed to push to"
   type        = string
 }
+
+variable "terraform_state_bucket_name" {
+  description = "Name of the GCS bucket holding Terraform state. Used to grant the drift-detection SA read access. Omit or set to null to skip GCS state access for drift."
+  type        = string
+  default     = null
+}
