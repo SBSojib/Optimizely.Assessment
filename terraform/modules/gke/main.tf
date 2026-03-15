@@ -102,7 +102,8 @@ resource "google_container_cluster" "primary" {
   lifecycle {
     ignore_changes = [
       monitoring_config,
-      release_channel, # master version drifts with REGULAR channel; we don't pin it
+      release_channel,   # master version drifts with REGULAR channel
+      resource_labels,   # GCP/addons can add labels; we set var.labels but API may add more
     ]
   }
 }
