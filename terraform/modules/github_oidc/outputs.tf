@@ -17,3 +17,8 @@ output "github_deployer_principal_set" {
   description = "principalSet URI representing all federated GitHub identities for this repository. Useful for additional resource-level IAM bindings or debugging WIF trust."
   value       = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_owner}/${var.github_repository}"
 }
+
+output "github_drift_service_account_email" {
+  description = "Email of the drift-detection SA — set as DRIFT_GCP_SERVICE_ACCOUNT secret in the GitHub Actions environment (used by terraform-drift workflow)"
+  value       = google_service_account.github_drift.email
+}

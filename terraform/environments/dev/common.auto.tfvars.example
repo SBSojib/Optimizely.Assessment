@@ -1,5 +1,6 @@
-project_id    = "your-project-id"
-region        = "your-region"
-zone          = "your-zone"
-environment   = "dev"
-naming_prefix = "your-naming-prefix"
+project_id                   = "your-project-id"
+region                       = "your-region"
+zone                         = "your-zone"
+environment                  = "dev"
+naming_prefix                = "your-naming-prefix"
+terraform_state_bucket_name  = "your-terraform-state-bucket"  # same as backend.hcl; used for drift SA GCS access

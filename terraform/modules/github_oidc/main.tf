@@ -130,3 +130,38 @@ resource "google_project_iam_member" "github_deployer_gke" {
   role    = "roles/container.developer"
   member  = "serviceAccount:${google_service_account.github_deployer.email}"
 }
+
+# ---------------------------------------------------------------------------
+# GitHub Actions drift-detection service account (read-only)
+# ---------------------------------------------------------------------------
+# Used by the Terraform drift detection workflow. Holds roles/viewer and
+# read access to the Terraform state bucket only. No deploy or write rights.
+# Same WIF pool/provider — workflows choose which SA to impersonate via secrets.
+# ---------------------------------------------------------------------------
+
+resource "google_service_account" "github_drift" {
+  account_id   = "${var.naming_prefix}-gh-drift"
+  display_name = "GitHub Actions drift detection (${var.environment})"
+  description  = "Read-only SA for terraform plan (drift detection). Impersonated via WIF. No long-lived key."
+  project      = var.project_id
+}
+
+resource "google_service_account_iam_member" "github_drift_wif_impersonation" {
+  service_account_id = google_service_account.github_drift.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_owner}/${var.github_repository}"
+}
+
+resource "google_project_iam_member" "github_drift_viewer" {
+  project = var.project_id
+  role    = "roles/viewer"
+  member  = "serviceAccount:${google_service_account.github_drift.email}"
+}
+
+# Read access to Terraform state so drift workflow can run terraform init + plan.
+resource "google_storage_bucket_iam_member" "github_drift_state" {
+  count  = var.terraform_state_bucket_name != null ? 1 : 0
+  bucket = var.terraform_state_bucket_name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.github_drift.email}"
+}

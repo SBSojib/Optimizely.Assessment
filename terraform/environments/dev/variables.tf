@@ -150,3 +150,8 @@ variable "github_oidc_pool_id_suffix" {
   type        = string
   default     = ""
 }
+
+variable "terraform_state_bucket_name" {
+  description = "Name of the GCS bucket used for Terraform state (backend). Required for granting the drift-detection SA read access. Must match the bucket in backend.hcl."
+  type        = string
+}

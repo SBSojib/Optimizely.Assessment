@@ -66,3 +66,8 @@ output "github_deployer_principal_set" {
   description = "principalSet URI for the federated GitHub identity — useful for debugging WIF trust or adding further resource-level IAM bindings"
   value       = module.github_oidc.github_deployer_principal_set
 }
+
+output "github_drift_service_account_email" {
+  description = "Drift-detection SA email — set as DRIFT_GCP_SERVICE_ACCOUNT secret in the GitHub Actions 'dev' environment for the terraform-drift workflow"
+  value       = module.github_oidc.github_drift_service_account_email
+}
