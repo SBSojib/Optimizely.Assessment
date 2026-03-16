@@ -1,0 +1,20 @@
+variable "project_id" {
+  description = "GCP project ID"
+  type        = string
+}
+
+variable "secret_ids" {
+  description = "List of Secret Manager secret IDs to create (shell only — values are populated manually via gcloud)"
+  type        = list(string)
+}
+
+variable "accessor_service_account_email" {
+  description = "GCP service account email granted roles/secretmanager.secretAccessor on each secret"
+  type        = string
+}
+
+variable "labels" {
+  description = "Labels to apply to secret resources"
+  type        = map(string)
+  default     = {}
+}

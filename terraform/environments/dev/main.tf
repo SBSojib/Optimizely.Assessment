@@ -32,6 +32,7 @@ locals {
     "logging.googleapis.com",
     "monitoring.googleapis.com",
     "sts.googleapis.com",            # Security Token Service — required for WIF
+    "secretmanager.googleapis.com",  # Secret Manager — stretch goal: secrets management
   ])
 }
 
@@ -129,6 +130,21 @@ module "github_oidc" {
 
   # The AR repository must exist before the IAM binding can be created.
   depends_on = [module.supporting_infra, google_project_service.required]
+}
+
+# ---------------------------------------------------------------------------
+# Secrets: Secret Manager shells + IAM for hello-service
+# ---------------------------------------------------------------------------
+
+module "secrets" {
+  source = "../../modules/secrets"
+
+  project_id                     = var.project_id
+  secret_ids                     = var.secret_manager_secret_ids
+  accessor_service_account_email = module.gke.hello_service_gsa_email
+  labels                         = local.common_labels
+
+  depends_on = [google_project_service.required]
 }
 
 # ---------------------------------------------------------------------------

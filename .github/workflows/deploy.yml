@@ -91,6 +91,8 @@ jobs:
             --set image.repository="${{ vars.ARTIFACT_REGISTRY_REPO }}" \
             --set image.tag="${{ github.sha }}" \
             --set serviceAccount.gcpServiceAccount="${{ secrets.HELLO_SERVICE_GSA_EMAIL }}" \
+            --set secrets.enabled=true \
+            --set secrets.refs.API_KEY=hello-svc-api-key \
             --history-max 10 \
             --atomic \
             --timeout 5m

@@ -37,6 +37,7 @@ Infrastructure-as-code, containerised application deployment, and observability 
 │   └── modules/
 │       ├── networking/         # VPC, subnet, Cloud Router, Cloud NAT
 │       ├── gke/                # GKE cluster, node pool, IAM
+│       ├── secrets/            # Secret Manager shells + IAM
 │       └── supporting_infra/   # Artifact Registry
 ├── app/                        # ASP.NET Core 8 HTTP service + Dockerfile
 ├── helm/hello-service/         # Helm chart for GKE deployment
@@ -141,6 +142,7 @@ cp common.auto.tfvars.example common.auto.tfvars
 cp networking.auto.tfvars.example networking.auto.tfvars
 cp gke.auto.tfvars.example gke.auto.tfvars
 cp apps.auto.tfvars.example apps.auto.tfvars
+cp secrets.auto.tfvars.example secrets.auto.tfvars
 cp backend.hcl.example backend.hcl
 
 terraform init -backend-config=backend.hcl
@@ -150,9 +152,37 @@ terraform apply
 HELLO_SERVICE_GSA=$(terraform output -raw hello_service_gsa_email)
 ```
 
-This creates the VPC, subnet, Cloud NAT, GKE cluster (private nodes, Workload Identity, and Managed Prometheus), Artifact Registry, workload identity bindings for the application, and the required project APIs.
+This creates the VPC, subnet, Cloud NAT, GKE cluster (private nodes, Workload Identity, and Managed Prometheus), Artifact Registry, workload identity bindings for the application, Secret Manager secret shells, and the required project APIs.
 
-### Step 3 — Build and Push the Container Image
+### Step 3 — Populate Secrets (Manual, Outside Git)
+
+Terraform creates the secret **shells** in Secret Manager. You must populate the actual values manually. This keeps secret values out of Terraform state and git.
+
+```bash
+# Add a secret version (repeat for each secret in secrets.auto.tfvars)
+printf "your-actual-api-key-value" | \
+  gcloud secrets versions add hello-svc-api-key \
+    --project=YOUR_PROJECT_ID \
+    --data-file=-
+```
+
+The hello-service reads these secrets at startup via the GCP Secret Manager SDK, authenticated automatically through Workload Identity. No JSON keys or Kubernetes Secrets are involved. See [docs/secrets-management.md](docs/secrets-management.md) for the full design.
+
+**Deploying the secrets-management changes (summary)**
+
+1. **Terraform** — Copy the example tfvars, then apply so Secret Manager secret shells and IAM exist:
+   ```bash
+   cp terraform/environments/dev/secrets.auto.tfvars.example terraform/environments/dev/secrets.auto.tfvars
+   cd terraform/environments/dev && terraform apply
+   ```
+2. **Populate secret values** — One-time, outside git (use your own value for the key):
+   ```bash
+   printf "your-chosen-api-key-value" | \
+     gcloud secrets versions add hello-svc-api-key --project=YOUR_PROJECT_ID --data-file=-
+   ```
+3. **Deploy the app** — Push to `master`; the GitHub CD workflow already deploys with `secrets.enabled=true` and `secrets.refs.API_KEY=hello-svc-api-key`. No manual Helm needed. New pods will load the secret at startup and protect `/hello` with that API key.
+
+### Step 4 — Build and Push the Container Image
 
 ```bash
 cd app
@@ -166,7 +196,7 @@ docker build -t ${IMAGE}:${TAG} .
 docker push ${IMAGE}:${TAG}
 ```
 
-### Step 4 — Connect to the Cluster
+### Step 5 — Connect to the Cluster
 
 ```bash
 gcloud container clusters get-credentials YOUR_CLUSTER_NAME \
@@ -174,7 +204,7 @@ gcloud container clusters get-credentials YOUR_CLUSTER_NAME \
   --project YOUR_PROJECT_ID
 ```
 
-### Step 5 — Deploy with Helm
+### Step 6 — Deploy with Helm
 
 ```bash
 helm upgrade --install hello-service helm/hello-service \
@@ -184,7 +214,7 @@ helm upgrade --install hello-service helm/hello-service \
   --wait
 ```
 
-### Step 6 — Verify the Deployment
+### Step 7 — Verify the Deployment
 
 ```bash
 # Check pods are running (expect 2 pods, 1/1 Ready, on separate nodes)
@@ -200,19 +230,26 @@ kubectl port-forward svc/hello-service -n hello-app 8080:80
 Test the endpoints:
 
 ```bash
-# Health check
+# Health check (always open — used by probes and smoke test)
 curl http://localhost:8080/health
 # → {"status":"ok"}
 
-# Hello endpoint (returns pod name, trace ID, timestamp)
-curl http://localhost:8080/hello
+# Hello endpoint — requires API key when Secret Manager is configured.
+# Send the key via Authorization header or X-API-Key header (use the value you stored in Secret Manager).
+curl -H "Authorization: Bearer YOUR_API_KEY_VALUE" http://localhost:8080/hello
+# or
+curl -H "X-API-Key: YOUR_API_KEY_VALUE" http://localhost:8080/hello
 # → {"message":"Hello from hello-service!","podName":"hello-service-...","traceId":"...","timestampUtc":"..."}
 
-# Prometheus metrics
+# Without the key (when the app has API_KEY set), you get 401:
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/hello
+# → 401
+
+# Prometheus metrics (always open)
 curl http://localhost:8080/metrics | grep hello_service_http_requests_total
 ```
 
-### Step 7 — Verify Observability
+### Step 8 — Verify Observability
 
 **Metrics (GMP):**
 
@@ -226,8 +263,8 @@ In GCP Console: Monitoring -> Metrics Explorer -> Resource type "Prometheus Targ
 **Logs (Cloud Logging):**
 
 ```bash
-# Get a trace_id from a request
-TRACE_ID=$(curl -s http://localhost:8080/hello | python3 -c "import sys,json; print(json.load(sys.stdin)['traceId'])")
+# Get a trace_id from a successful /hello request (include API key if secrets are enabled)
+TRACE_ID=$(curl -s -H "Authorization: Bearer YOUR_API_KEY_VALUE" http://localhost:8080/hello | python3 -c "import sys,json; print(json.load(sys.stdin)['traceId'])")
 
 # Query Cloud Logging for that trace_id
 gcloud logging read \
@@ -278,7 +315,15 @@ jsonPayload.trace_id="<YOUR_TRACE_ID>"
 
 **Trade-off:** Cloud NAT has per-GB egress processing costs (~$0.045/GB). For this assessment workload the cost is negligible.
 
-### 5. Helm over Plain Manifests or Kustomize
+### 5. GCP Secret Manager SDK over CSI Driver or External Secrets Operator
+
+**Choice:** The application reads secrets directly from Secret Manager at startup using the official SDK, authenticated via Workload Identity. Secret values are never stored in Kubernetes Secrets, Helm values, or git.
+
+**Why:** Both the Secrets Store CSI Driver and External Secrets Operator are excellent for large platforms with many services, but they require installing cluster-wide components (a DaemonSet or an operator with CRDs) that add operational overhead disproportionate to a single-service assessment. The direct SDK approach is Google's recommended pattern for GKE workloads with Workload Identity — it treats Secret Manager as the single source of truth, provides automatic authentication with zero stored credentials, and includes built-in audit logging via Cloud Audit Logs.
+
+**Trade-off:** Each application must include the Secret Manager SDK dependency. In a larger platform with dozens of services, a centralized operator that syncs secrets to Kubernetes would reduce per-service boilerplate at the cost of additional infrastructure.
+
+### 6. Helm over Plain Manifests or Kustomize
 
 **Choice:** Package the Kubernetes deployment as a Helm chart rather than raw manifests or Kustomize overlays.
 

@@ -48,6 +48,11 @@ metrics:
   portName: http
   interval: 30s
 
+secrets:
+  enabled: true
+  refs:
+    API_KEY: hello-svc-api-key
+
 podDisruptionBudget:
   enabled: true
   minAvailable: 1

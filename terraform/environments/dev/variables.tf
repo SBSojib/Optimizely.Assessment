@@ -156,6 +156,14 @@ variable "terraform_state_bucket_name" {
   type        = string
 }
 
+# --- Secrets Management ---
+
+variable "secret_manager_secret_ids" {
+  description = "Secret Manager secret IDs to create for the hello-service. Only the shell is created — values are populated manually via gcloud."
+  type        = list(string)
+  default     = []
+}
+
 # --- Alerting ---
 
 variable "alert_notification_email" {

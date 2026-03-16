@@ -72,6 +72,13 @@ output "github_drift_service_account_email" {
   value       = module.github_oidc.github_drift_service_account_email
 }
 
+# --- Secrets Management ---
+
+output "secret_manager_secret_names" {
+  description = "Map of secret ID to full Secret Manager resource name"
+  value       = module.secrets.secret_resource_names
+}
+
 # --- Alerting ---
 
 output "alert_notification_channel" {
