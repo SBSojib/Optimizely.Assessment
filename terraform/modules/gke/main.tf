@@ -40,6 +40,12 @@ resource "google_service_account_iam_member" "hello_service_workload_identity" {
   member             = local.hello_service_ksa_member
 }
 
+resource "google_project_iam_member" "hello_service_secret_accessor" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.hello_service.email}"
+}
+
 # ---------------------------------------------------------------------------
 # GKE cluster
 # ---------------------------------------------------------------------------
