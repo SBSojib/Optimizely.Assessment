@@ -1,4 +1,4 @@
-name: CD – Deploy to GKE
+name: CD - Deploy to GKE
 
 on:
   push:
@@ -96,6 +96,9 @@ jobs:
             --set global.projectId="${{ vars.GCP_PROJECT_ID }}" \
             --set image.repository="${{ vars.ARTIFACT_REGISTRY_REPO }}" \
             --set image.tag="${{ github.sha }}" \
+            --set metrics.enabled=true \
+            --set metrics.path=/metrics \
+            --set metrics.portName=http \
             --set serviceAccount.create=true \
             --set serviceAccount.name="${KSA_NAME}" \
             --set serviceAccount.workloadIdentity.enabled=true \
