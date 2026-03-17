@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - master
-    # Avoid running full app CI for Terraform-only or docs-only PRs.
     paths-ignore:
       - "terraform/**"
       - "docs/**"
@@ -13,6 +12,7 @@ on:
 # Minimal permissions: repo checkout only. No writes, no packages, no deployments.
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   changes:

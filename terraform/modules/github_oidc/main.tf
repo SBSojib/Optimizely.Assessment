@@ -7,9 +7,9 @@
 
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "${var.naming_prefix}-gh-pool${var.pool_id_suffix}"
-  display_name              = "GitHub Actions pool"
-  description               = "WIF pool for GitHub Actions CI/CD (${var.github_owner}/${var.github_repository})"
-  project                   = var.project_id
+  display_name = "GitHub Actions pool"
+  description  = "WIF pool for GitHub Actions CI/CD (${var.github_owner}/${var.github_repository})"
+  project      = var.project_id
 
   lifecycle {
     prevent_destroy = true
@@ -31,9 +31,9 @@ resource "google_iam_workload_identity_pool" "github" {
 resource "google_iam_workload_identity_pool_provider" "github" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = "${var.naming_prefix}-github${var.pool_id_suffix}"
-  display_name                       = "GitHub Actions OIDC"
-  description                        = "Trusts GitHub OIDC tokens for ${var.github_owner}/${var.github_repository}, environment: ${var.github_environment}"
-  project                            = var.project_id
+  display_name = "GitHub Actions OIDC"
+  description  = "Trusts GitHub OIDC tokens for ${var.github_owner}/${var.github_repository}, environment: ${var.github_environment}"
+  project      = var.project_id
 
   # Reject tokens that do not originate from this repository AND the
   # specific GitHub Actions environment (the 'environment:' key in the workflow
@@ -44,14 +44,14 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   attribute_mapping = {
     # google.subject is mandatory — it is set to the token's 'sub' claim, which
     # encodes repo + ref/environment (e.g., repo:OWNER/REPO:environment:dev).
-    "google.subject"             = "assertion.sub"
+    "google.subject" = "assertion.sub"
 
     # Custom attributes: available in IAM conditions and principalSet URIs.
-    "attribute.actor"            = "assertion.actor"
-    "attribute.repository"       = "assertion.repository"
+    "attribute.actor"      = "assertion.actor"
+    "attribute.repository" = "assertion.repository"
     "attribute.repository_owner" = "assertion.repository_owner"
-    "attribute.ref"              = "assertion.ref"
-    "attribute.environment"      = "assertion.environment"
+    "attribute.ref"        = "assertion.ref"
+    "attribute.environment" = "assertion.environment"
   }
 
   oidc {

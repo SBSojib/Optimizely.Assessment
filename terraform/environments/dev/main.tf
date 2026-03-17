@@ -11,8 +11,6 @@ terraform {
   backend "gcs" {}
 }
 
-# NOTE: No-op change to verify Terraform Validation workflow triggers on PRs.
-
 provider "google" {
   project = var.project_id
   region  = var.region
@@ -33,8 +31,8 @@ locals {
     "iamcredentials.googleapis.com", # SA impersonation via WIF token exchange
     "logging.googleapis.com",
     "monitoring.googleapis.com",
-    "sts.googleapis.com",            # Security Token Service — required for WIF
-    "secretmanager.googleapis.com",  # Secret Manager — stretch goal: secrets management
+    "sts.googleapis.com",
+    "secretmanager.googleapis.com",
   ])
 }
 
