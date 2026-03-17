@@ -31,8 +31,8 @@ locals {
     "iamcredentials.googleapis.com", # SA impersonation via WIF token exchange
     "logging.googleapis.com",
     "monitoring.googleapis.com",
-    "sts.googleapis.com",            # Security Token Service — required for WIF
-    "secretmanager.googleapis.com",  # Secret Manager — stretch goal: secrets management
+    "sts.googleapis.com",
+    "secretmanager.googleapis.com",
   ])
 }
 

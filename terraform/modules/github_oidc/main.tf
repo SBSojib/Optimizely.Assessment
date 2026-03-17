@@ -44,7 +44,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   attribute_mapping = {
     # google.subject is mandatory — it is set to the token's 'sub' claim, which
     # encodes repo + ref/environment (e.g., repo:OWNER/REPO:environment:dev).
-    "google.subject"             = "assertion.sub"
+    "google.subject" = "assertion.sub"
 
     # Custom attributes: available in IAM conditions and principalSet URIs.
     "attribute.actor"            = "assertion.actor"

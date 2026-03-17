@@ -4,16 +4,50 @@ on:
   pull_request:
     branches:
       - master
+    paths-ignore:
+      - "terraform/**"
+      - "docs/**"
+      - "**/*.md"
 
 # Minimal permissions: repo checkout only. No writes, no packages, no deployments.
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      dotnet: ${{ steps.filter.outputs.dotnet }}
+      docker: ${{ steps.filter.outputs.docker }}
+      helm: ${{ steps.filter.outputs.helm }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            dotnet:
+              - "app/**"
+              - "tests/**"
+              - "**/*.sln"
+              - "**/*.csproj"
+              - "NuGet.Config"
+            docker:
+              - "app/Dockerfile"
+              - "app/**"
+            helm:
+              - "helm/**"
+
   # ── Job 1: Restore, compile, and test the .NET app ───────────────────────────
   dotnet:
     name: Build & Test (.NET 8)
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.dotnet == 'true' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +70,8 @@ jobs:
   docker:
     name: Docker Build (no push)
     runs-on: ubuntu-latest
-    needs: dotnet  # only attempt if the app itself builds
+    needs: [changes, dotnet]  # only attempt if app builds and Docker inputs changed
+    if: ${{ needs.changes.outputs.docker == 'true' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +83,8 @@ jobs:
   helm:
     name: Helm Lint & Template
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.helm == 'true' }}
 
     steps:
       - uses: actions/checkout@v4

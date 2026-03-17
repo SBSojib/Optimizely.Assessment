@@ -106,11 +106,12 @@ resource "google_container_cluster" "primary" {
 
   # GKE API returns extra/computed fields that cause benign drift; ignore read-only / API-managed.
   lifecycle {
+    # Avoid noisy diffs from API-managed/computed fields.
     ignore_changes = [
       monitoring_config,
-      release_channel,   # master version drifts with REGULAR channel
-      resource_labels,   # GCP/addons can add labels
-      logging_config,    # API returns default logging; we do not set it explicitly
+      release_channel,
+      resource_labels,
+      logging_config,
     ]
   }
 }
