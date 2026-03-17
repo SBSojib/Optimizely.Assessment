@@ -129,9 +129,9 @@ resource "google_container_node_pool" "primary" {
   node_count = var.node_count
 
   node_config {
-    machine_type = var.machine_type
-    disk_size_gb = var.disk_size_gb
-    disk_type    = var.disk_type
+    machine_type    = var.machine_type
+    disk_size_gb    = var.disk_size_gb
+    disk_type       = var.disk_type
     service_account = google_service_account.gke_nodes.email
 
     workload_metadata_config {
