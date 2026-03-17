@@ -108,6 +108,7 @@ The CD workflow targets the GitHub Environment named **`dev`**. Variables and se
 | `WORKLOAD_IDENTITY_PROVIDER` | Full WIF provider resource name |
 | `GCP_SERVICE_ACCOUNT` | GSA email that GitHub Actions impersonates for GCP operations |
 | `HELLO_SERVICE_GSA_EMAIL` | Runtime GSA email annotated onto the Kubernetes `ServiceAccount` |
+| `HELLO_SERVICE_API_KEY` | API key for `/hello` — same value as stored in Secret Manager for `hello-svc-api-key`. Used by the CD smoke test to verify authenticated /hello returns 200. |
 
 ### Drift Detection Setup
 

@@ -112,11 +112,12 @@ jobs:
 
       # ── 6. Smoke test ──────────────────────────────────────────────────────────
       #
-      # Port-forward the ClusterIP Service to the runner and probe /health.
-      # This validates that the newly deployed pods are serving traffic correctly
-      # without requiring a public ingress or LoadBalancer.
+      # Port-forward the ClusterIP Service to the runner; probe /health, then
+      # /hello without key (expect 401) and /hello with API key from GitHub secret (expect 200).
       - name: Smoke test (/health and /hello auth)
         id: smoke-test
+        env:
+          HELLO_API_KEY: ${{ secrets.HELLO_SERVICE_API_KEY }}
         run: |
           kubectl port-forward \
             "svc/${{ vars.HELM_RELEASE }}" 8080:80 \
@@ -127,6 +128,11 @@ jobs:
           # Wait for the tunnel to be reachable (retry up to ~60s).
           HTTP_STATUS=""
           for i in $(seq 1 30); do
+            if ! kill -0 "$PF_PID" 2>/dev/null; then
+              echo "Port-forward exited early. Log:"
+              cat /tmp/pf.log
+              exit 1
+            fi
             if HTTP_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
               --max-time 5 --connect-timeout 2 http://localhost:8080/health 2>/dev/null); then
               break
@@ -140,14 +146,23 @@ jobs:
             sleep 2
           done
 
-          kill "$PF_PID" 2>/dev/null || true
-
-          HELLO_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+          HELLO_UNAUTH=$(curl --silent --output /dev/null --write-out "%{http_code}" \
             --max-time 5 --connect-timeout 2 http://localhost:8080/hello)
 
-          echo "Health endpoint returned HTTP $HTTP_STATUS"
-          echo "Hello endpoint without credentials returned HTTP $HELLO_STATUS"
-          [ "$HTTP_STATUS" -eq 200 ] && [ "$HELLO_STATUS" -eq 401 ]
+          if [ -z "$HELLO_API_KEY" ]; then
+            echo "::error::Missing required GitHub Environment secret: HELLO_SERVICE_API_KEY (same value as in Secret Manager for hello-svc-api-key)"
+            kill "$PF_PID" 2>/dev/null || true
+            exit 1
+          fi
+          HELLO_AUTH=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+            --max-time 5 --connect-timeout 2 -H "Authorization: Bearer $HELLO_API_KEY" http://localhost:8080/hello)
+
+          kill "$PF_PID" 2>/dev/null || true
+
+          echo "Health: $HTTP_STATUS (expect 200)"
+          echo "Hello without key: $HELLO_UNAUTH (expect 401)"
+          echo "Hello with API key: $HELLO_AUTH (expect 200)"
+          [ "$HTTP_STATUS" -eq 200 ] && [ "$HELLO_UNAUTH" -eq 401 ] && [ "$HELLO_AUTH" -eq 200 ]
 
       # Roll back to the previous revision when the smoke test fails so a broken
       # deploy does not stay live. Only runs when the smoke test step failed
