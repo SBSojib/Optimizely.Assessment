@@ -53,6 +53,7 @@ helm upgrade --install hello-service ../helm/hello-service \
   --set global.projectId=YOUR_PROJECT_ID \
   --set serviceAccount.create=true \
   --set serviceAccount.name=hello-service-sa \
+  --set serviceAccount.workloadIdentity.enabled=true \
   --set serviceAccount.gcpServiceAccount=${HELLO_SERVICE_GSA} \
   --set image.tag=${TAG} \
   --wait

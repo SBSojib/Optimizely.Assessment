@@ -44,6 +44,10 @@ ServiceAccount name.
 */}}
 {{- define "hello-service.serviceAccountName" -}}
 {{- $sa := .Values.serviceAccount | default dict }}
+{{- $wi := $sa.workloadIdentity | default dict }}
+{{- if not $wi.enabled }}
+{{- fail "serviceAccount.workloadIdentity.enabled must be true for hello-service." }}
+{{- end }}
 {{- $name := $sa.name | default "" }}
 {{- if not $name }}
 {{- fail "serviceAccount.name must be set to a dedicated Kubernetes service account for hello-service." }}
