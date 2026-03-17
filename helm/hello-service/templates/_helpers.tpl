@@ -44,11 +44,14 @@ ServiceAccount name.
 */}}
 {{- define "hello-service.serviceAccountName" -}}
 {{- $sa := .Values.serviceAccount | default dict }}
-{{- if $sa.create }}
-{{- default (include "hello-service.fullname" .) $sa.name }}
-{{- else }}
-{{- default "default" $sa.name }}
+{{- $name := $sa.name | default "" }}
+{{- if not $name }}
+{{- fail "serviceAccount.name must be set to a dedicated Kubernetes service account for hello-service." }}
 {{- end }}
+{{- if eq $name "default" }}
+{{- fail "serviceAccount.name must not be \"default\". Use a dedicated Kubernetes service account for hello-service." }}
+{{- end }}
+{{- $name }}
 {{- end }}
 
 {{/*
@@ -59,7 +62,12 @@ Google service account email used for Workload Identity.
 {{- $global := .Values.global | default dict }}
 {{- if $sa.gcpServiceAccount -}}
 {{- $sa.gcpServiceAccount -}}
+{{- else if and $sa.gcpServiceAccountName $global.projectId -}}
+{{- if eq $sa.gcpServiceAccountName "default" -}}
+{{- fail "serviceAccount.gcpServiceAccountName must not be \"default\" when Workload Identity is enabled." -}}
+{{- end -}}
+{{- printf "%s@%s.iam.gserviceaccount.com" $sa.gcpServiceAccountName $global.projectId -}}
 {{- else -}}
-{{- printf "%s@%s.iam.gserviceaccount.com" ($sa.gcpServiceAccountName | default "default") ($global.projectId | default "default") -}}
+{{- fail "serviceAccount.gcpServiceAccount or both serviceAccount.gcpServiceAccountName and global.projectId must be set for Workload Identity." -}}
 {{- end -}}
 {{- end }}

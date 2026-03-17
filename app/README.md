@@ -51,6 +51,8 @@ HELLO_SERVICE_GSA=$(cd ../terraform/environments/dev && terraform output -raw he
 
 helm upgrade --install hello-service ../helm/hello-service \
   --set global.projectId=YOUR_PROJECT_ID \
+  --set serviceAccount.create=true \
+  --set serviceAccount.name=hello-service-sa \
   --set serviceAccount.gcpServiceAccount=${HELLO_SERVICE_GSA} \
   --set image.tag=${TAG} \
   --wait
@@ -132,7 +134,7 @@ Expected: Prometheus text exposition format including `hello_service_http_reques
 - **High availability**: 2 replicas by default, required pod anti-affinity across nodes, topology spread constraints, and a `PodDisruptionBudget` with `minAvailable: 1`.
 - **Probes**: readiness and liveness probes hit `/health`.
 - **Pod name injection**: Kubernetes Downward API sets `POD_NAME` env var from `metadata.name`.
-- **Workload Identity**: The Helm chart annotates the Kubernetes ServiceAccount with the GSA provisioned by Terraform, so the workload is bound end to end rather than only prepared in principle.
+- **Workload Identity**: The workload must use the dedicated `hello-service-sa` Kubernetes service account. The chart fails fast if the deployment would fall back to Kubernetes `default`.
 - **Non-root container**: Dockerfile uses the built-in `$APP_UID` user from the .NET 8 base image.
 - **Pod hardening**: The deployment enforces `runAsNonRoot`, runtime-default seccomp, dropped Linux capabilities, disallows privilege escalation, and mounts the root filesystem read-only.
 - **Image size**: multi-stage build keeps the final image small (aspnet runtime only).

@@ -90,6 +90,8 @@ jobs:
             --set global.projectId="${{ vars.GCP_PROJECT_ID }}" \
             --set image.repository="${{ vars.ARTIFACT_REGISTRY_REPO }}" \
             --set image.tag="${{ github.sha }}" \
+            --set serviceAccount.create=true \
+            --set serviceAccount.name=hello-service-sa \
             --set serviceAccount.gcpServiceAccount="${{ secrets.HELLO_SERVICE_GSA_EMAIL }}" \
             --set secrets.enabled=true \
             --set secrets.refs.API_KEY=hello-svc-api-key \
