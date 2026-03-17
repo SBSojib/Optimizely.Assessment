@@ -17,8 +17,6 @@ No self-hosted Prometheus, Grafana, Loki, or Elasticsearch is required.
 | File | Purpose |
 |------|---------|
 | `README.md` | This document — full observability design and verification guide |
-| `podmonitoring.yaml` | Standalone GMP PodMonitoring manifest (also deployed via Helm chart) |
-| `values-observability.yaml` | Helm values overlay for observability configuration knobs |
 | `log-query-examples.md` | Ready-to-use Cloud Logging queries for troubleshooting |
 
 ---
@@ -59,7 +57,7 @@ spec:
 
 GMP's managed collectors (running in `gmp-system` namespace) discover this resource and begin scraping automatically. No sidecar or additional operator is needed.
 
-Scraping is toggled via `metrics.enabled` in `values.yaml`.
+The Helm chart is the single source of truth for PodMonitoring configuration. Scraping is toggled via `metrics.enabled` in `helm/hello-service/values.yaml.example` (or an equivalent values override file).
 
 ---
 
@@ -71,9 +69,10 @@ Alerting is implemented as a Terraform module (`terraform/modules/alerting/`) an
 | ----- | --------- | ------- |
 | **Container Restart Rate** | Restarts > 3 in 10 min | CrashLoopBackOff, OOMKilled, failing health probes |
 | **Memory Utilization High** | Container memory > 85% of limit for 5 min | Leading indicator before OOMKill |
+| **Service Availability** | No running containers (uptime) for 5 min | Detects loss of available application instances |
 | **Error Log Rate** | Error logs (severity ≥ ERROR) > 5 in 5 min | Application exceptions, dependency failures |
 
-**Setup:** Configure `alert_notification_email` in `terraform/environments/dev/alerting.auto.tfvars`, then run `terraform apply` in `terraform/environments/dev`. After apply, verify the email channel in **Monitoring → Alerting → Edit notification channels** so notifications are delivered. See `terraform/local.README.md` for full details.
+**Setup:** Configure `alert_notification_email` in `terraform/environments/dev/alerting.auto.tfvars`, then run `terraform apply` in `terraform/environments/dev`. After apply, verify the email channel in **Monitoring → Alerting → Edit notification channels** so notifications are delivered.
 
 ### Verify metrics are available
 
@@ -151,16 +150,16 @@ jsonPayload.message="hello_request_handled"
 kubectl port-forward svc/hello-service -n hello-app 8080:80 &
 
 # Single request
-curl http://localhost:8080/hello
+curl -H "Authorization: Bearer YOUR_API_KEY_VALUE" http://localhost:8080/hello
 
 # Burst of 20 requests
-for i in $(seq 1 20); do curl -s http://localhost:8080/hello; done
+for i in $(seq 1 20); do curl -s -H "Authorization: Bearer YOUR_API_KEY_VALUE" http://localhost:8080/hello; done
 ```
 
 ### 2. Grab a trace_id
 
 ```bash
-curl -s http://localhost:8080/hello | jq -r '.traceId'
+curl -s -H "Authorization: Bearer YOUR_API_KEY_VALUE" http://localhost:8080/hello | jq -r '.traceId'
 ```
 
 Example output: `TRACE_ID`
@@ -208,7 +207,7 @@ kubectl get podmonitoring -n hello-app
 |------|--------|
 | `app/Program.cs` | Added metrics counter, structured JSON log, `/metrics` endpoint |
 | `app/HelloService.csproj` | Added `prometheus-net.AspNetCore` 8.2.1 |
-| `helm/hello-service/values.yaml` | Added `metrics` configuration block |
+| `helm/hello-service/values.yaml.example` | Added `metrics` configuration block |
 | `helm/hello-service/templates/deployment.yaml` | Added Prometheus pod annotations plus pod HA and security hardening |
 | `helm/hello-service/templates/podmonitoring.yaml` | **New** — GMP PodMonitoring resource |
 | `helm/hello-service/templates/pdb.yaml` | **New** — PodDisruptionBudget for safer rollouts and node drains |
@@ -228,6 +227,7 @@ docker push ${IMAGE}:${TAG}
 HELLO_SERVICE_GSA=$(cd ../terraform/environments/dev && terraform output -raw hello_service_gsa_email)
 
 helm upgrade --install hello-service ../helm/hello-service \
+  -f ../helm/hello-service/values.yaml.example \
   --set global.projectId=YOUR_PROJECT_ID \
   --set serviceAccount.gcpServiceAccount=${HELLO_SERVICE_GSA} \
   --set image.tag=${TAG} \

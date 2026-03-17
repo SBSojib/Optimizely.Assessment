@@ -33,13 +33,13 @@ Secret values (API keys, connection strings, etc.) are stored in **GCP Secret Ma
 
 1. **Terraform** creates Secret Manager secret shells (no values) and grants `roles/secretmanager.secretAccessor` to the hello-service GSA
 2. **Operator** populates secret values manually via `gcloud` (one-time, outside git)
-3. **Helm** injects env vars into the pod: `GCP_PROJECT_ID` and `SECRET_<X>=<secret-id>`
+3. **Helm** injects `SECRET_<X>=<secret-id>` env vars into the pod and, when secret references are enabled, also passes `GCP_PROJECT_ID`
 4. **App** at startup scans for `SECRET_*` env vars, calls Secret Manager to resolve each, and exports the value as the corresponding env var (e.g., `SECRET_API_KEY=hello-svc-api-key` becomes `API_KEY=<actual value>`)
 5. **Workload Identity** provides authentication automatically — the pod's KSA is bound to the GSA
 
 ## Calling the /hello API
 
-When the API key is configured, the `/hello` endpoint requires the key. Send it in one of two ways:
+The `/hello` endpoint requires the API key. Send it in one of two ways:
 
 ```bash
 # Option 1: Authorization header
@@ -118,8 +118,8 @@ secrets:
 | No secrets in Kubernetes | App reads directly from Secret Manager — no K8s Secret objects |
 | No long-lived credentials | Workload Identity provides short-lived tokens automatically |
 | Audit trail | Cloud Audit Logs records every secret access |
-| Least privilege | Only the hello-service GSA has `secretAccessor` on its specific secrets |
-| Graceful degradation | If Secret Manager is unavailable, app logs a warning and starts without secrets |
+| Runtime access | The hello-service GSA has the Secret Manager access it needs for runtime retrieval |
+| Explicit failure mode | If secret references are configured but Secret Manager access fails, startup fails fast rather than serving with partial configuration |
 
 ## Design Decision: Why Not CSI Driver or External Secrets Operator?
 

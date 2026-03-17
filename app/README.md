@@ -50,9 +50,10 @@ gcloud container clusters get-credentials YOUR_CLUSTER_NAME \
 HELLO_SERVICE_GSA=$(cd ../terraform/environments/dev && terraform output -raw hello_service_gsa_email)
 
 helm upgrade --install hello-service ../helm/hello-service \
+  -f ../helm/hello-service/values.yaml.example \
   --set global.projectId=YOUR_PROJECT_ID \
   --set serviceAccount.create=true \
-  --set serviceAccount.name=hello-service-sa \
+  --set serviceAccount.name=YOUR_KSA_NAME \
   --set serviceAccount.workloadIdentity.enabled=true \
   --set serviceAccount.gcpServiceAccount=${HELLO_SERVICE_GSA} \
   --set image.tag=${TAG} \
@@ -63,6 +64,7 @@ To use a different namespace or image:
 
 ```bash
 helm upgrade --install hello-service ../helm/hello-service \
+  -f ../helm/hello-service/values.yaml.example \
   --set image.tag=${TAG} \
   --set namespace=hello-app \
   --wait
@@ -100,7 +102,9 @@ Expected response:
 ### Test /hello
 
 ```bash
-curl http://localhost:8080/hello
+curl -H "Authorization: Bearer YOUR_API_KEY_VALUE" http://localhost:8080/hello
+# or
+curl -H "X-API-Key: YOUR_API_KEY_VALUE" http://localhost:8080/hello
 ```
 
 Expected response (values will differ):
@@ -127,7 +131,7 @@ Expected: Prometheus text exposition format including `hello_service_http_reques
 | Path | Method | Description |
 |------|--------|-------------|
 | `/health` | GET | Liveness / readiness probe — returns `{"status":"ok"}` |
-| `/hello` | GET | Returns greeting with pod name, trace ID, and UTC timestamp |
+| `/hello` | GET | Returns greeting with pod name, trace ID, and UTC timestamp; requires `Authorization: Bearer <key>` or `X-API-Key` |
 | `/metrics` | GET | Prometheus-compatible metrics endpoint |
 
 ## Design notes
@@ -135,7 +139,7 @@ Expected: Prometheus text exposition format including `hello_service_http_reques
 - **High availability**: 2 replicas by default, required pod anti-affinity across nodes, topology spread constraints, and a `PodDisruptionBudget` with `minAvailable: 1`.
 - **Probes**: readiness and liveness probes hit `/health`.
 - **Pod name injection**: Kubernetes Downward API sets `POD_NAME` env var from `metadata.name`.
-- **Workload Identity**: The workload must use the dedicated `hello-service-sa` Kubernetes service account. The chart fails fast if the deployment would fall back to Kubernetes `default`.
+- **Workload Identity**: The workload must use a dedicated Kubernetes service account. Keep `serviceAccount.name` aligned with the `hello_service_service_account` Terraform input so the Workload Identity binding matches the deployed pod identity.
 - **Non-root container**: Dockerfile uses the built-in `$APP_UID` user from the .NET 8 base image.
 - **Pod hardening**: The deployment enforces `runAsNonRoot`, runtime-default seccomp, dropped Linux capabilities, disallows privilege escalation, and mounts the root filesystem read-only.
 - **Image size**: multi-stage build keeps the final image small (aspnet runtime only).

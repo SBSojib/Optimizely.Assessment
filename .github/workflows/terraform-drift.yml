@@ -19,7 +19,8 @@
 #
 # Secrets (tfvars for plan):
 #   TF_VARS  – combined HCL content of the gitignored *.auto.tfvars files
-#              (common + networking + gke + apps). Multiline string.
+#              (common + networking + gke + apps + secrets + github_oidc + alerting).
+#              Multiline string.
 #
 # Environment variables (vars.*):
 #   TF_STATE_BUCKET  – GCS bucket that holds Terraform state

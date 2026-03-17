@@ -5,10 +5,23 @@ using Xunit;
 
 namespace HelloService.Tests;
 
-public class EndpointTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public class EndpointTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
-    private readonly HttpClient _client = factory.CreateClient();
+    private const string TestApiKey = "test-api-key";
+
+    private readonly HttpClient _client;
+    private readonly string? _originalApiKey = Environment.GetEnvironmentVariable("API_KEY");
+    private readonly string? _originalProjectId = Environment.GetEnvironmentVariable("GCP_PROJECT_ID");
+    private readonly string? _originalSecretApiKey = Environment.GetEnvironmentVariable("SECRET_API_KEY");
+
+    public EndpointTests(WebApplicationFactory<Program> factory)
+    {
+        Environment.SetEnvironmentVariable("API_KEY", TestApiKey);
+        Environment.SetEnvironmentVariable("GCP_PROJECT_ID", null);
+        Environment.SetEnvironmentVariable("SECRET_API_KEY", null);
+
+        _client = factory.CreateClient();
+    }
 
     // ── /health ──────────────────────────────────────────────────────────────
 
@@ -32,9 +45,20 @@ public class EndpointTests(WebApplicationFactory<Program> factory)
     // ── /hello ───────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Hello_Returns200()
+    public async Task Hello_WithoutApiKey_Returns401()
     {
         var response = await _client.GetAsync("/hello");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Hello_WithBearerToken_Returns200()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/hello");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", TestApiKey);
+
+        var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -42,7 +66,11 @@ public class EndpointTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Hello_ReturnsExpectedMessage()
     {
-        var body = await _client.GetFromJsonAsync<HelloBody>("/hello");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/hello");
+        request.Headers.Add("X-API-Key", TestApiKey);
+
+        var response = await _client.SendAsync(request);
+        var body = await response.Content.ReadFromJsonAsync<HelloBody>();
 
         Assert.NotNull(body);
         Assert.Equal("Hello from hello-service!", body.Message);
@@ -51,7 +79,11 @@ public class EndpointTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Hello_PodName_FallsBackToUnknown_WhenEnvVarAbsent()
     {
-        var body = await _client.GetFromJsonAsync<HelloBody>("/hello");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/hello");
+        request.Headers.Add("X-API-Key", TestApiKey);
+
+        var response = await _client.SendAsync(request);
+        var body = await response.Content.ReadFromJsonAsync<HelloBody>();
 
         Assert.NotNull(body);
         Assert.Equal("unknown", body.PodName);
@@ -60,7 +92,11 @@ public class EndpointTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Hello_TimestampUtc_IsValidIso8601()
     {
-        var body = await _client.GetFromJsonAsync<HelloBody>("/hello");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/hello");
+        request.Headers.Add("X-API-Key", TestApiKey);
+
+        var response = await _client.SendAsync(request);
+        var body = await response.Content.ReadFromJsonAsync<HelloBody>();
 
         Assert.NotNull(body);
         Assert.True(
@@ -98,4 +134,11 @@ public class EndpointTests(WebApplicationFactory<Program> factory)
         string PodName,
         string TraceId,
         string TimestampUtc);
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable("API_KEY", _originalApiKey);
+        Environment.SetEnvironmentVariable("GCP_PROJECT_ID", _originalProjectId);
+        Environment.SetEnvironmentVariable("SECRET_API_KEY", _originalSecretApiKey);
+    }
 }

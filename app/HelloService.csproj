@@ -6,12 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <!-- Exclude test projects/folders from publish so Docker build never compiles them -->
-  <ItemGroup>
-    <Compile Remove="**/HelloService.Tests/**" />
-    <Compile Remove="**/*.Tests/**" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Google.Cloud.SecretManager.V1" Version="2.7.0" />
     <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />

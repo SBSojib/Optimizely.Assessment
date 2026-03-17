@@ -1,4 +1,6 @@
 using System.Collections;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Google.Cloud.SecretManager.V1;
 using Prometheus;
@@ -13,35 +15,46 @@ builder.Logging.AddJsonConsole(options =>
 
 var app = builder.Build();
 
-// Load secrets from GCP Secret Manager via Workload Identity.
+// Load secrets from GCP Secret Manager via Workload Identity when SECRET_* refs exist.
 // Env vars named SECRET_<X> are resolved to their secret value and re-exported as <X>.
-var gcpProjectId = Environment.GetEnvironmentVariable("GCP_PROJECT_ID")
-                   ?? throw new InvalidOperationException("GCP_PROJECT_ID must be configured.");
-
-try
-{
-    var client = SecretManagerServiceClient.Create();
-    foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
+var secretReferences = Environment
+    .GetEnvironmentVariables()
+    .Cast<DictionaryEntry>()
+    .Select(entry => new
     {
-        var key = entry.Key?.ToString();
-        var secretId = entry.Value?.ToString();
-        if (key is null || !key.StartsWith("SECRET_") || string.IsNullOrEmpty(secretId))
-            continue;
+        Key = entry.Key?.ToString(),
+        SecretId = entry.Value?.ToString(),
+    })
+    .Where(entry => entry.Key is not null &&
+                    entry.Key.StartsWith("SECRET_", StringComparison.Ordinal) &&
+                    !string.IsNullOrWhiteSpace(entry.SecretId))
+    .ToList();
 
-        var envName = key["SECRET_".Length..];
-        var name = new SecretVersionName(gcpProjectId, secretId, "latest");
-        var response = client.AccessSecretVersion(name);
-        Environment.SetEnvironmentVariable(envName, response.Payload.Data.ToStringUtf8());
-        app.Logger.LogInformation("Loaded secret {SecretId} as {EnvVar}", secretId, envName);
+if (secretReferences.Count > 0)
+{
+    var gcpProjectId = Environment.GetEnvironmentVariable("GCP_PROJECT_ID")
+                       ?? throw new InvalidOperationException("GCP_PROJECT_ID must be configured when SECRET_* references are set.");
+
+    try
+    {
+        var client = SecretManagerServiceClient.Create();
+        foreach (var secretReference in secretReferences)
+        {
+            var envName = secretReference.Key!["SECRET_".Length..];
+            var name = new SecretVersionName(gcpProjectId, secretReference.SecretId!, "latest");
+            var response = client.AccessSecretVersion(name);
+            Environment.SetEnvironmentVariable(envName, response.Payload.Data.ToStringUtf8());
+            app.Logger.LogInformation("Loaded secret {SecretId} as {EnvVar}", secretReference.SecretId, envName);
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Failed to load secrets from Secret Manager.");
+        throw;
     }
 }
-catch (Exception ex)
-{
-    app.Logger.LogError(ex, "Failed to load secrets from Secret Manager.");
-    throw;
-}
 
-// API key must be present; otherwise the app fails fast.
+// API key must be present, whether provided directly or loaded from Secret Manager.
 var apiKey = Environment.GetEnvironmentVariable("API_KEY")
              ?? throw new InvalidOperationException("API_KEY must be configured for hello-service.");
 
@@ -67,7 +80,7 @@ app.Use(async (context, next) =>
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-// /hello is always protected by the API key loaded from Secret Manager.
+// /hello is always protected by the configured API key.
 // Clients must send Authorization: Bearer <key> or X-API-Key: <key>.
 app.MapGet("/hello", (HttpContext context) =>
 {
@@ -76,7 +89,7 @@ app.MapGet("/hello", (HttpContext context) =>
         ? authHeader["Bearer ".Length..].Trim()
         : context.Request.Headers["X-API-Key"].FirstOrDefault();
 
-    if (suppliedKey != apiKey)
+    if (!ApiKeyMatches(suppliedKey, apiKey))
     {
         return Results.Json(
             new { error = "Missing or invalid API key. Use Authorization: Bearer <key> or X-API-Key header." },
@@ -111,6 +124,19 @@ app.MapGet("/hello", (HttpContext context) =>
 app.MapMetrics();
 
 app.Run();
+
+static bool ApiKeyMatches(string? suppliedKey, string expectedApiKey)
+{
+    if (string.IsNullOrEmpty(suppliedKey))
+    {
+        return false;
+    }
+
+    var suppliedBytes = Encoding.UTF8.GetBytes(suppliedKey);
+    var expectedBytes = Encoding.UTF8.GetBytes(expectedApiKey);
+
+    return CryptographicOperations.FixedTimeEquals(suppliedBytes, expectedBytes);
+}
 
 // Required for WebApplicationFactory<Program> in integration tests.
 public partial class Program { }

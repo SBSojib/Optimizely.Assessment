@@ -58,8 +58,8 @@ jobs:
           version: "v3.14.0"
 
       - name: Lint chart
-        run: helm lint helm/hello-service
+        run: helm lint helm/hello-service -f helm/hello-service/values.yaml.example
 
       # Render all templates to catch missing keys, bad conditionals, etc.
       - name: Render templates
-        run: helm template hello-service helm/hello-service
+        run: helm template hello-service helm/hello-service -f helm/hello-service/values.yaml.example

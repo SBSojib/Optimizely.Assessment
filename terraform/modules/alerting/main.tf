@@ -150,7 +150,66 @@ resource "google_monitoring_alert_policy" "memory_utilization" {
 }
 
 # ---------------------------------------------------------------------------
-# Alert 3 — Application error log rate
+# Alert 3 — Service availability
+# ---------------------------------------------------------------------------
+
+resource "google_monitoring_alert_policy" "service_availability" {
+  project      = var.project_id
+  display_name = "[${var.environment}] Service Availability — hello-service"
+  combiner     = "OR"
+  enabled      = true
+
+  conditions {
+    display_name = "No running containers (uptime) for 5 min"
+
+    condition_threshold {
+      filter = join(" AND ", [
+        "resource.type = \"k8s_container\"",
+        "resource.labels.namespace_name = \"${var.app_namespace}\"",
+        "resource.labels.cluster_name = \"${var.cluster_name}\"",
+        "resource.labels.container_name = \"hello-service\"",
+        "metric.type = \"kubernetes.io/container/uptime\"",
+      ])
+
+      comparison      = "COMPARISON_LT"
+      threshold_value = 1
+      duration        = "300s"
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_MAX"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.email.name]
+
+  alert_strategy {
+    auto_close = "1800s"
+  }
+
+  documentation {
+    content = join("\n", [
+      "**No running hello-service containers detected for five minutes.**",
+      "",
+      "This is a direct service-availability signal based on container uptime.",
+      "",
+      "Investigation steps:",
+      "1. `kubectl get pods -n ${var.app_namespace}` — confirm pod readiness and restart counts",
+      "2. `kubectl describe deploy,po -n ${var.app_namespace}` — inspect rollout, probe, and scheduling failures",
+      "3. Check Cloud Logging for startup failures or authentication errors",
+    ])
+    mime_type = "text/markdown"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Alert 4 — Application error log rate
 # ---------------------------------------------------------------------------
 
 resource "google_monitoring_alert_policy" "error_log_rate" {

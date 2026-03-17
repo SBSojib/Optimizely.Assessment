@@ -37,11 +37,16 @@ Infrastructure-as-code, containerised application deployment, and observability 
 │   └── modules/
 │       ├── networking/         # VPC, subnet, Cloud Router, Cloud NAT
 │       ├── gke/                # GKE cluster, node pool, IAM
+│       ├── github_oidc/        # GitHub Actions Workload Identity Federation
 │       ├── secrets/            # Secret Manager shells + IAM
+│       ├── alerting/           # Cloud Monitoring policies + notification channel
 │       └── supporting_infra/   # Artifact Registry
 ├── app/                        # ASP.NET Core 8 HTTP service + Dockerfile
 ├── helm/hello-service/         # Helm chart for GKE deployment
-└── observability/              # Observability stack config + documentation
+├── observability/              # Observability stack config + documentation
+├── docs/                       # Supporting design notes
+├── tests/                      # Integration tests for the app
+└── .github/workflows/          # CI, CD, and Terraform drift detection
 ```
 
 ## Prerequisites
@@ -62,14 +67,16 @@ GitHub Actions handles both continuous integration and continuous deployment. No
 
 | Trigger | Workflow | What it does |
 |---------|----------|--------------|
-| Pull request → `main` | `ci.yml` | Build and test the .NET app; build the Docker image (no push); lint and render the Helm chart |
-| Push to `main` | `deploy.yml` | Build and push the image to Artifact Registry (tagged with `$GITHUB_SHA`); deploy to GKE via Helm; run a `/health` smoke test |
+| Pull request touching `terraform/**` | `terraform-validate.yml` | Check Terraform formatting and run `terraform init -backend=false` + `terraform validate` for the bootstrap and `dev` root modules |
+| Pull request → `master` | `ci.yml` | Build and test the .NET app; build the Docker image (no push); lint and render the Helm chart using `values.yaml.example` |
+| Push to `master` | `deploy.yml` | Build and push the image to Artifact Registry (tagged with `$GITHUB_SHA`); deploy to GKE via Helm; run `/health` and `/hello` auth smoke checks |
+| Schedule / manual dispatch | `terraform-drift.yml` | Run read-only `terraform plan -detailed-exitcode` against the remote state backend to detect out-of-band changes |
 
 ```
 PR opened / updated
   └── CI: dotnet build + test → docker build (no push) → helm lint
                  ↓ all checks pass
-PR merged to main
+PR merged to master
   └── CD: docker build + push (SHA tag) → helm upgrade --install → smoke test
 ```
 
@@ -92,6 +99,7 @@ The CD workflow targets the GitHub Environment named **`dev`**. Variables and se
 | `ARTIFACT_REGISTRY_REPO` | `asia-south2-docker.pkg.dev/…/hello-service` |
 | `K8S_NAMESPACE` | `hello-app` |
 | `HELM_RELEASE` | `hello-service` |
+| `HELLO_SERVICE_KSA_NAME` | Kubernetes service account name used by the deployment (must match `hello_service_service_account` in Terraform) |
 
 **Secrets** (`secrets.*`)
 
@@ -100,6 +108,24 @@ The CD workflow targets the GitHub Environment named **`dev`**. Variables and se
 | `WORKLOAD_IDENTITY_PROVIDER` | Full WIF provider resource name |
 | `GCP_SERVICE_ACCOUNT` | GSA email that GitHub Actions impersonates for GCP operations |
 | `HELLO_SERVICE_GSA_EMAIL` | Runtime GSA email annotated onto the Kubernetes `ServiceAccount` |
+
+### Drift Detection Setup
+
+The scheduled drift workflow reuses the same GitHub Environment (`dev`) and requires a few additional settings.
+
+**Variables** (`vars.*`)
+
+| Name | Description |
+|------|-------------|
+| `TF_STATE_BUCKET` | GCS bucket that stores Terraform remote state |
+| `TF_STATE_PREFIX` | Object prefix used by the `terraform/environments/dev` backend |
+
+**Secrets** (`secrets.*`)
+
+| Name | Description |
+|------|-------------|
+| `DRIFT_GCP_SERVICE_ACCOUNT` | Read-only drift-detection service account email from Terraform output |
+| `TF_VARS` | Combined HCL content of the `common`, `networking`, `gke`, `apps`, `secrets`, `github_oidc`, and `alerting` `*.auto.tfvars` files |
 
 ## End-to-End Setup
 
@@ -119,6 +145,8 @@ export GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=YOUR_SERVICE_ACCOUNT_EMAIL
 ### Step 1 — Bootstrap Terraform State Bucket
 
 The GCS backend bucket must exist before Terraform can use it. The bootstrap module creates it with local state.
+
+Copy `terraform.tfvars.example` to a real `terraform.tfvars`, fill in your actual values there, and do not commit that file. The real `*.tfvars` files are intentionally gitignored.
 
 ```bash
 cd terraform/bootstrap
@@ -143,6 +171,8 @@ cp networking.auto.tfvars.example networking.auto.tfvars
 cp gke.auto.tfvars.example gke.auto.tfvars
 cp apps.auto.tfvars.example apps.auto.tfvars
 cp secrets.auto.tfvars.example secrets.auto.tfvars
+cp github_oidc.auto.tfvars.example github_oidc.auto.tfvars
+cp alerting.auto.tfvars.example alerting.auto.tfvars
 cp backend.hcl.example backend.hcl
 
 terraform init -backend-config=backend.hcl
@@ -151,6 +181,8 @@ terraform apply
 
 HELLO_SERVICE_GSA=$(terraform output -raw hello_service_gsa_email)
 ```
+
+Populate the copied `*.auto.tfvars` files locally with your actual values. Keep the committed `*.example` files placeholder-only and keep the real `*.tfvars` files out of git.
 
 This creates the VPC, subnet, Cloud NAT, GKE cluster (private nodes, Workload Identity, and Managed Prometheus), Artifact Registry, workload identity bindings for the application, Secret Manager secret shells, and the required project APIs.
 
@@ -208,6 +240,7 @@ gcloud container clusters get-credentials YOUR_CLUSTER_NAME \
 
 ```bash
 helm upgrade --install hello-service helm/hello-service \
+  -f helm/hello-service/values.yaml.example \
   --set global.projectId=YOUR_PROJECT_ID \
   --set serviceAccount.gcpServiceAccount=${HELLO_SERVICE_GSA} \
   --set image.tag=${TAG} \
@@ -234,14 +267,15 @@ Test the endpoints:
 curl http://localhost:8080/health
 # → {"status":"ok"}
 
-# Hello endpoint — requires API key when Secret Manager is configured.
+# Hello endpoint — always requires an API key.
+# In-cluster, it is typically loaded from Secret Manager; locally, you can also set API_KEY directly.
 # Send the key via Authorization header or X-API-Key header (use the value you stored in Secret Manager).
 curl -H "Authorization: Bearer YOUR_API_KEY_VALUE" http://localhost:8080/hello
 # or
 curl -H "X-API-Key: YOUR_API_KEY_VALUE" http://localhost:8080/hello
 # → {"message":"Hello from hello-service!","podName":"hello-service-...","traceId":"...","timestampUtc":"..."}
 
-# Without the key (when the app has API_KEY set), you get 401:
+# Without the key, you get 401:
 curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/hello
 # → 401
 

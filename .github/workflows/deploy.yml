@@ -83,6 +83,12 @@ jobs:
 
       - name: Helm upgrade / install
         run: |
+          KSA_NAME="${{ vars.HELLO_SERVICE_KSA_NAME }}"
+          if [ -z "$KSA_NAME" ]; then
+            echo "::error::Missing required GitHub Environment variable: HELLO_SERVICE_KSA_NAME"
+            exit 1
+          fi
+
           helm upgrade --install "${{ vars.HELM_RELEASE }}" helm/hello-service \
             --namespace "${{ vars.K8S_NAMESPACE }}" \
             --create-namespace \
@@ -91,7 +97,7 @@ jobs:
             --set image.repository="${{ vars.ARTIFACT_REGISTRY_REPO }}" \
             --set image.tag="${{ github.sha }}" \
             --set serviceAccount.create=true \
-            --set serviceAccount.name=hello-service-sa \
+            --set serviceAccount.name="${KSA_NAME}" \
             --set serviceAccount.workloadIdentity.enabled=true \
             --set serviceAccount.gcpServiceAccount="${{ secrets.HELLO_SERVICE_GSA_EMAIL }}" \
             --set secrets.enabled=true \
@@ -109,7 +115,7 @@ jobs:
       # Port-forward the ClusterIP Service to the runner and probe /health.
       # This validates that the newly deployed pods are serving traffic correctly
       # without requiring a public ingress or LoadBalancer.
-      - name: Smoke test (/health)
+      - name: Smoke test (/health and /hello auth)
         id: smoke-test
         run: |
           kubectl port-forward \
@@ -136,8 +142,12 @@ jobs:
 
           kill "$PF_PID" 2>/dev/null || true
 
+          HELLO_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+            --max-time 5 --connect-timeout 2 http://localhost:8080/hello)
+
           echo "Health endpoint returned HTTP $HTTP_STATUS"
-          [ "$HTTP_STATUS" -eq 200 ]
+          echo "Hello endpoint without credentials returned HTTP $HELLO_STATUS"
+          [ "$HTTP_STATUS" -eq 200 ] && [ "$HELLO_STATUS" -eq 401 ]
 
       # Roll back to the previous revision when the smoke test fails so a broken
       # deploy does not stay live. Only runs when the smoke test step failed

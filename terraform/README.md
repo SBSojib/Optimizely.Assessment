@@ -22,6 +22,8 @@ terraform/
 ├── modules/
 │   ├── networking/           # VPC, subnet, Cloud Router, Cloud NAT
 │   ├── gke/                  # GKE cluster, node pool, node SA, IAM
+│   ├── github_oidc/          # GitHub Actions Workload Identity Federation
+│   ├── secrets/              # Secret Manager shells + per-secret IAM
 │   ├── supporting_infra/     # Artifact Registry
 │   └── alerting/             # Cloud Monitoring alert policies, notification channel
 ├── environments/
@@ -33,6 +35,8 @@ terraform/
 │       ├── networking.auto.tfvars.example
 │       ├── gke.auto.tfvars.example
 │       ├── apps.auto.tfvars.example
+│       ├── secrets.auto.tfvars.example
+│       ├── github_oidc.auto.tfvars.example
 │       ├── alerting.auto.tfvars.example
 │       └── backend.hcl.example
 └── README.md
@@ -74,6 +78,8 @@ gcloud compute instances list
 Terraform cannot use a GCS backend bucket that does not yet exist. The bootstrap
 module creates it using local state.
 
+Copy `terraform.tfvars.example` to a real `terraform.tfvars`, put your actual values only in that gitignored file, and do not commit it.
+
 ```bash
 cd terraform/bootstrap
 
@@ -97,6 +103,8 @@ cp common.auto.tfvars.example common.auto.tfvars
 cp networking.auto.tfvars.example networking.auto.tfvars
 cp gke.auto.tfvars.example gke.auto.tfvars
 cp apps.auto.tfvars.example apps.auto.tfvars
+cp secrets.auto.tfvars.example secrets.auto.tfvars
+cp github_oidc.auto.tfvars.example github_oidc.auto.tfvars
 cp alerting.auto.tfvars.example alerting.auto.tfvars
 cp backend.hcl.example backend.hcl
 
@@ -112,6 +120,8 @@ terraform apply
 # Capture the Google service account that is pre-bound for hello-service Workload Identity
 terraform output -raw hello_service_gsa_email
 ```
+
+Populate the copied `*.auto.tfvars` files locally with your real values. Keep the committed `*.example` files placeholder-only and keep the real `*.tfvars` files out of git.
 
 ### Connecting to the Cluster
 
@@ -178,7 +188,7 @@ available:
 | `subnet_name`                  | Name of the GKE subnet                     |
 | `alert_notification_channel`   | Cloud Monitoring notification channel      |
 
-**Alerting:** Set `alert_notification_email` in `alerting.auto.tfvars`; after apply, verify the email channel in **Monitoring → Alerting → Edit notification channels**. See `terraform/local.README.md` for the full alerting section.
+**Alerting:** Set `alert_notification_email` in `alerting.auto.tfvars`; after apply, verify the email channel in **Monitoring → Alerting → Edit notification channels** so notifications are delivered.
 
 ## Cleanup
 

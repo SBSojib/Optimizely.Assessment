@@ -139,10 +139,9 @@ module "github_oidc" {
 module "secrets" {
   source = "../../modules/secrets"
 
-  project_id                     = var.project_id
-  secret_ids                     = var.secret_manager_secret_ids
-  accessor_service_account_email = module.gke.hello_service_gsa_email
-  labels                         = local.common_labels
+  project_id = var.project_id
+  secret_ids = var.secret_manager_secret_ids
+  labels     = local.common_labels
 
   depends_on = [google_project_service.required]
 }

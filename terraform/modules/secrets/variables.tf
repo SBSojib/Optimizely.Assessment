@@ -8,11 +8,6 @@ variable "secret_ids" {
   type        = list(string)
 }
 
-variable "accessor_service_account_email" {
-  description = "GCP service account email granted roles/secretmanager.secretAccessor on each secret"
-  type        = string
-}
-
 variable "labels" {
   description = "Labels to apply to secret resources"
   type        = map(string)
