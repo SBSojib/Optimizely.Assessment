@@ -158,6 +158,12 @@ resource "google_project_iam_member" "github_drift_viewer" {
   member  = "serviceAccount:${google_service_account.github_drift.email}"
 }
 
+resource "google_project_iam_member" "github_drift_gke_cluster_viewer" {
+  project = var.project_id
+  role    = "roles/container.clusterViewer"
+  member  = "serviceAccount:${google_service_account.github_drift.email}"
+}
+
 # Custom role: read state objects + read bucket IAM (so plan can refresh google_storage_bucket_iam_member).
 resource "google_project_iam_custom_role" "terraform_state_read" {
   count       = var.terraform_state_bucket_name != null ? 1 : 0
