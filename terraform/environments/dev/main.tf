@@ -11,6 +11,8 @@ terraform {
   backend "gcs" {}
 }
 
+# NOTE: No-op change to verify Terraform Validation workflow triggers on PRs.
+
 provider "google" {
   project = var.project_id
   region  = var.region
