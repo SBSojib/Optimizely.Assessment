@@ -1,6 +1,6 @@
 # Optimizely DevOps Take-Home Assessment
 
-Infrastructure-as-code, containerised application deployment, and observability pipeline for a reference microservice running on GKE.
+Submission for the Optimizely DevOps take-home. Includes Terraform for GCP/GKE, a small ASP.NET Core service (containerized), a Helm chart, and basic observability (metrics + logs).
 
 ## Architecture Overview
 
@@ -63,7 +63,7 @@ Infrastructure-as-code, containerised application deployment, and observability 
 
 ## CI/CD
 
-GitHub Actions handles both continuous integration and continuous deployment. No long-lived GCP service account keys are stored in GitHub — all GCP authentication is done via [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation).
+GitHub Actions runs CI/CD. No long-lived GCP keys in GitHub. Auth uses [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation).
 
 ### Flow
 
@@ -71,56 +71,31 @@ GitHub Actions handles both continuous integration and continuous deployment. No
 | Trigger                              | Workflow                 | What it does                                                                                                                                    |
 | ------------------------------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Pull request touching `terraform/**` | `terraform-validate.yml` | Check Terraform formatting and run `terraform init -backend=false` + `terraform validate` for the bootstrap and `dev` root modules              |
-| Pull request → `master`              | `ci.yml`                 | Build and test the .NET app; build the Docker image (no push); lint and render the Helm chart using `values.yaml.example`                       |
+| Pull request targeting `master`      | `ci.yml`                 | Build and test the .NET app; build the Docker image (no push); lint and render the Helm chart using `values.yaml.example`                       |
 | Push to `master`                     | `deploy.yml`             | Build and push the image to Artifact Registry (tagged with `$GITHUB_SHA`); deploy to GKE via Helm; run `/health` and `/hello` auth smoke checks |
 | Schedule / manual dispatch           | `terraform-drift.yml`    | Run read-only `terraform plan -detailed-exitcode` against the remote state backend to detect out-of-band changes                                |
 
 
 ```
 PR opened / updated
-  └── CI: dotnet build + test → docker build (no push) → helm lint
+  └── CI: dotnet build + test, then docker build (no push), then helm lint
                  ↓ all checks pass
 PR merged to master
-  └── CD: docker build + push (SHA tag) → helm upgrade --install → smoke test
+  └── CD: docker build + push (SHA tag), then helm upgrade --install, then smoke test
 ```
 
 ### Authentication
 
-The CD workflow uses `google-github-actions/auth` with a WIF provider and service account email. GitHub exchanges a short-lived OIDC token for a GCP access token — no JSON key file is ever created or stored.
+CD uses `google-github-actions/auth` with a WIF provider + service account email. GitHub swaps a short-lived OIDC token for a GCP access token. No JSON key files.
 
 ### GitHub Environment: `dev`
 
-The CD workflow targets the GitHub Environment named `**dev**`. Variables and secrets must be configured there.
-
-**Variables** (`vars.`*)
-
-
-| Name                     | Example value                                                                                                    |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `GCP_PROJECT_ID`         | `skynet-2026-code-test-sojib`                                                                                    |
-| `GCP_REGION`             | `asia-south2`                                                                                                    |
-| `GKE_CLUSTER`            | `opti-devops-gke`                                                                                                |
-| `GKE_LOCATION`           | `asia-south2-a`                                                                                                  |
-| `ARTIFACT_REGISTRY_REPO` | `asia-south2-docker.pkg.dev/…/hello-service`                                                                     |
-| `K8S_NAMESPACE`          | `hello-app`                                                                                                      |
-| `HELM_RELEASE`           | `hello-service`                                                                                                  |
-| `HELLO_SERVICE_KSA_NAME` | Kubernetes service account name used by the deployment (must match `hello_service_service_account` in Terraform) |
-
-
-**Secrets** (`secrets.`*)
-
-
-| Name                         | Description                                                                                                                                                  |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `WORKLOAD_IDENTITY_PROVIDER` | Full WIF provider resource name                                                                                                                              |
-| `GCP_SERVICE_ACCOUNT`        | GSA email that GitHub Actions impersonates for GCP operations                                                                                                |
-| `HELLO_SERVICE_GSA_EMAIL`    | Runtime GSA email annotated onto the Kubernetes `ServiceAccount`                                                                                             |
-| `HELLO_SERVICE_API_KEY`      | API key for `/hello` — same value as stored in Secret Manager for `hello-svc-api-key`. Used by the CD smoke test to verify authenticated /hello returns 200. |
+Workflows target the GitHub Environment `dev`. Vars/secrets are listed in [Step 4](#step-4--deploy-the-application-via-cicd).
 
 
 ### Drift Detection Setup
 
-The scheduled drift workflow reuses the same GitHub Environment (`dev`) and requires a few additional settings.
+The scheduled drift workflow also uses `dev` and needs extra entries.
 
 **Variables** (`vars.`*)
 
@@ -157,11 +132,11 @@ export GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=YOUR_SERVICE_ACCOUNT_EMAIL
 
 ### Step 1 — Bootstrap Terraform State Bucket
 
-The GCS backend bucket must exist before Terraform can use it. The bootstrap module creates it with local state.
+The Terraform backend bucket must exist first. The bootstrap module creates it using local state.
 
-Copy `terraform.tfvars.example` to a real `terraform.tfvars`, fill in your actual values there, and do not commit that file. The real `*.tfvars` files are intentionally gitignored.
+Copy `terraform.tfvars.example` to `terraform.tfvars`, fill it in, and don’t commit it. Real `*.tfvars` are gitignored.
 
-**Note on tfvars loading:** Terraform automatically loads `terraform.tfvars` and any `*.auto.tfvars` files from the current working directory. If you create `terraform/bootstrap/terraform.tfvars`, you can run `terraform plan` / `terraform apply` without `-var=...`. The explicit `-var` flags below are an alternative for one-off runs.
+Terraform auto-loads `terraform.tfvars` and `*.auto.tfvars` in the current directory.
 
 ```bash
 cd terraform/bootstrap
@@ -191,13 +166,13 @@ terraform apply
 HELLO_SERVICE_GSA=$(terraform output -raw hello_service_gsa_email)
 ```
 
-Populate the copied `*.auto.tfvars` files locally with your actual values. Keep the committed `*.example` files placeholder-only and keep the real `*.tfvars` files out of git.
+Fill the copied `*.auto.tfvars` locally with real values. Keep the committed `*.example` files as placeholders. Don’t commit real `*.tfvars`.
 
-This creates the VPC, subnet, Cloud NAT, GKE cluster (private nodes, Workload Identity, and Managed Prometheus), Artifact Registry, workload identity bindings for the application, Secret Manager secret shells, and the required project APIs.
+This provisions VPC/subnet, Cloud NAT, a private-node GKE cluster (Workload Identity + Managed Prometheus), Artifact Registry, app identity bindings, Secret Manager secret shells, alerting, and required APIs.
 
 ### Step 3 — Populate Secrets (Manual, Outside Git)
 
-Terraform creates the secret **shells** in Secret Manager. You must populate the actual values manually. This keeps secret values out of Terraform state and git.
+Terraform creates Secret Manager secret **shells**. You add secret versions yourself. Secret values stay out of git and Terraform state.
 
 ```bash
 # Add a secret version (repeat for each secret in secrets.auto.tfvars)
@@ -207,15 +182,15 @@ printf "your-actual-api-key-value" | \
     --data-file=-
 ```
 
-The hello-service reads these secrets at startup via the GCP Secret Manager SDK, authenticated automatically through Workload Identity. No JSON keys or Kubernetes Secrets are involved. See [docs/secrets-management.md](docs/secrets-management.md) for the full design.
+`hello-service` reads secrets at startup using the Secret Manager SDK via Workload Identity. No JSON keys. No Kubernetes Secrets. See [docs/secrets-management.md](docs/secrets-management.md).
 
-**Note:** Once secrets are populated, the **CI/CD deploy path** (merge to `master` via PR after CI and Terraform validation pass) will roll out new pods that load the secret at startup and protect `/hello` with that API key.
+Once secrets exist, merging to `master` deploys and `/hello` is protected by that API key.
 
 ### Step 4 — Deploy the Application via CI/CD
 
-Deployment is done only through CI/CD. Before the first deploy, create the GitHub Environment **`dev`** (Settings → Environments → New environment) and add the following **variables** and **secrets**. All of them are used by the workflows that target `dev` (CD and optional drift detection).
+Deployment happens via CI/CD only. Create GitHub Environment `dev` and add the vars/secrets below.
 
-**Variables** (Settings → Environments → `dev` → Environment variables):
+**Variables** (Settings > Environments > `dev` > Environment variables):
 
 
 | Name                     | Used by | Description                                                                                           |
@@ -232,7 +207,7 @@ Deployment is done only through CI/CD. Before the first deploy, create the GitHu
 | `TF_STATE_PREFIX`        | Drift   | Object prefix for the `terraform/environments/dev` backend (e.g. `env/dev`)                           |
 
 
-**Secrets** (Settings → Environments → `dev` → Environment secrets):
+**Secrets** (Settings > Environments > `dev` > Environment secrets):
 
 
 | Name                         | Used by       | Description                                                                                                                       |
@@ -245,81 +220,71 @@ Deployment is done only through CI/CD. Before the first deploy, create the GitHu
 | `TF_VARS`                    | Drift         | Combined HCL content of the `common`, `networking`, `gke`, `apps`, `secrets`, `github_oidc`, and `alerting` `*.auto.tfvars` files |
 
 
-Once the **Deploy** variables and secrets are set, open a **pull request** to `master`. CI (`ci.yml`) and Terraform validation (`terraform-validate.yml`) run on the PR; do not push directly to `master` (it's restricted anyway). After the PR is merged, the `deploy.yml` workflow runs: it builds + pushes the image (tagged with `$GITHUB_SHA`), deploys via Helm, and runs authenticated smoke tests. Add the **Drift** entries if you use the scheduled Terraform drift workflow. Full reference: [GitHub Environment: `dev`](#github-environment-dev).
+After setting Deploy entries, open a PR to `master`. PR runs `ci.yml` + `terraform-validate.yml`. Merge runs `deploy.yml`: build + push (tag `$GITHUB_SHA`), Helm deploy, then authenticated smoke tests. Add Drift entries only if you enable drift detection.
 
 ### Step 5 — Verify the Deployment
 
 ```bash
-# Check pods are running (expect 2 pods, 1/1 Ready, on separate nodes)
+# Expect 2 pods on separate nodes
 kubectl get pods -n hello-app -o wide
 
-# Verify the PodDisruptionBudget is protecting at least one replica
 kubectl get pdb -n hello-app
 
-# Port-forward to the service
 kubectl port-forward svc/hello-service -n hello-app 8080:80
 ```
 
 Test the endpoints:
 
 ```bash
-# Health check (always open — used by probes and smoke test)
 curl http://localhost:8080/health
-# → {"status":"ok"}
 
-# Hello endpoint — always requires an API key.
-# In-cluster, it is typically loaded from Secret Manager; locally, you can also set API_KEY directly.
-# Send the key via Authorization header or X-API-Key header (use the value you stored in Secret Manager).
 curl -H "Authorization: Bearer YOUR_API_KEY_VALUE" http://localhost:8080/hello
-# or
 curl -H "X-API-Key: YOUR_API_KEY_VALUE" http://localhost:8080/hello
-# → {"message":"Hello from hello-service!","podName":"hello-service-...","traceId":"...","timestampUtc":"..."}
 
-# Without the key, you get 401:
 curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/hello
-# → 401
 
-# Prometheus metrics (always open)
 curl http://localhost:8080/metrics | grep hello_service_http_requests_total
 ```
 
 ### Step 6 — Verify Observability
 
-All verification below is **CLI-only** (no UI/Console required).
+All checks below are CLI-only.
 
 **Logs (Cloud Logging):**
 
-Use the **actual** API key value (the one you stored in Secret Manager for `hello-svc-api-key`). If you use a placeholder or wrong key, `/hello` returns 401 and the response body has no `traceId`, so the one-liner below will fail with `KeyError: 'traceId'`.
+Target state: JSON logs to stdout should land in Cloud Logging as `resource.type="k8s_container"` for namespace `hello-app`.
 
-**If Cloud Logging returns `[]`:** Logs from GKE can take 1–2 minutes to appear. If the **broad** query below also returns `[]`, then container logs from `hello-app` are not visible in Cloud Logging for your current identity (check GKE logging configuration and IAM: the identity needs permission to read log entries, e.g. `roles/logging.viewer` or `logging.logEntries.list`). You can still verify that the app emits the expected log line using **kubectl** (see fallback below).
+In my test environment, stdout logs didn’t show up in Cloud Logging (queries kept returning `[]` even after traffic). App worked and logged to stdout. Cluster workload logging was enabled. Node SA had `roles/logging.logWriter` and `cloud-platform` scope. No obvious routing/view config dropping `k8s_container`.
 
 ```bash
-# Optional: confirm recent logs from hello-app are visible in Cloud Logging (no trace filter)
+# Baseline: do we see any recent GKE-related logs at all?
+# If this is empty too, it strongly suggests a project/ingestion issue rather than a query filter issue.
+gcloud logging read \
+  'resource.type=("gce_instance" OR "k8s_node" OR "k8s_container")' \
+  --project=YOUR_PROJECT_ID \
+  --limit=50 --freshness=30m \
+  --format='value(resource.type,logName)'
+
+# Narrow: container logs for the namespace (expected to return entries)
 gcloud logging read \
   'resource.type="k8s_container" AND resource.labels.namespace_name="hello-app"' \
-  --project=YOUR_PROJECT_ID --limit=5 --freshness=5m --format=json
-
-# Replace YOUR_ACTUAL_API_KEY with the value from Secret Manager (hello-svc-api-key)
-TRACE_ID=$(curl -s -H "Authorization: Bearer YOUR_ACTUAL_API_KEY" http://localhost:8080/hello | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('traceId','') or d.get('trace_id','') or sys.exit('No traceId in response (check API key and that /hello returned 200)'))")
-
-# Query Cloud Logging for that trace_id (if you get [], wait 1–2 min and retry; or use kubectl fallback below)
-gcloud logging read \
-  "resource.type=\"k8s_container\" AND resource.labels.namespace_name=\"hello-app\" AND jsonPayload.trace_id=\"${TRACE_ID}\"" \
   --project=YOUR_PROJECT_ID \
-  --limit=5 --format=json
-```
+  --limit=20 --freshness=30m \
+  --format=json
 
-**Fallback — verify log line with kubectl (no Cloud Logging required):** After calling `/hello`, confirm the app emitted a log line containing `trace_id`. With multiple replicas, the request is handled by one pod; use that pod’s name from the response so the log line isn’t lost in the aggregated stream. Run these one after the other (or copy the full block):
-
-```bash
-HELLO_RESP=$(curl -s -H "X-API-Key: YOUR_ACTUAL_API_KEY" http://localhost:8080/hello)
-POD=$(echo "$HELLO_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('podName',''))")
-kubectl logs -n hello-app "$POD" --tail=30 | grep -E '"trace_id"|hello_request_handled'
+# Targeted: generate one request, capture its trace_id, then search for it in Cloud Logging.
+# (Use the actual API key value stored in Secret Manager for hello-svc-api-key.)
+TRACE_ID=$(curl -s -H "Authorization: Bearer YOUR_ACTUAL_API_KEY" http://localhost:8080/hello | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('traceId','') or d.get('trace_id','') or '')")
+gcloud logging read \
+  "resource.type=\"k8s_container\" AND resource.labels.namespace_name=\"hello-app\" AND (jsonPayload.trace_id=\"${TRACE_ID}\" OR jsonPayload.traceId=\"${TRACE_ID}\")" \
+  --project=YOUR_PROJECT_ID \
+  --limit=20 --freshness=30m \
+  --format=json
 ```
 
 **Metrics (GCP Managed Prometheus via Cloud Monitoring API):**
 
-The `gcloud` CLI does not expose a `time-series list` subcommand. Use the Cloud Monitoring REST API with an access token:
+`gcloud` doesn’t expose a `time-series list` command. Use the Monitoring REST API with an access token:
 
 ```bash
 # Replace YOUR_PROJECT_ID. Uses current gcloud credentials.
@@ -333,71 +298,128 @@ curl -s -H "Authorization: Bearer ${TOKEN}" \
 
 ## Architecture Decisions
 
-### 1. GCP Managed Prometheus (GMP) + Cloud Logging over Self-Hosted Stacks
+Required vs chosen.
 
-**Choice:** Use GMP PodMonitoring for metrics scraping and Cloud Logging for log ingestion instead of deploying Prometheus Operator, Grafana, Loki, or ELK.
+### Constraints (mandated by the assessment prompt)
 
-**Why:** For a two-replica reference service, deploying and maintaining a self-hosted observability stack adds significant operational overhead (storage, retention policies, HA for the monitoring stack itself) without proportional benefit. GMP is zero-infrastructure — the managed collectors run in `gmp-system` and scrape PodMonitoring targets automatically. Cloud Logging is always-on for GKE. Both integrate directly with Cloud Monitoring dashboards and alerting. This is the approach most GKE-native platform teams adopt as their baseline.
+- **GKE Standard (not Autopilot)**: Autopilot was explicitly disallowed so node pool configuration could be demonstrated.
+- **Private nodes**: Nodes have no public IPs; workloads must not be directly accessible from the internet.
+- **Outbound internet reachability from inside the VPC**: Workloads must be able to reach the internet for image pulls and updates while remaining private.
+- **Dedicated node pool**: At least 2 nodes, using `e2-standard-2` or smaller, to stay within budget.
+- **Workload Identity enabled**: Required on the cluster and node pool.
+- **Deliverable format**: Terraform split into at least networking/cluster/supporting modules; sensitive values via variables; required outputs present.
+- **Observability outcomes**: service exposes metrics; metrics are scraped/queryable; pod logs are ingested/queryable; `/hello` emits structured JSON with at least `trace_id` and HTTP status; demonstrate filtering by `trace_id`.
 
-**Trade-off:** Less portability to non-GCP environments. If the team later needs multi-cloud observability, a self-hosted stack (e.g., Prometheus + Thanos + Grafana) would be more appropriate.
+### Core architecture choices (areas where the prompt gave options or was silent)
 
-### 2. Zonal GKE Cluster Instead of Regional
+#### 1. Observability baseline: GMP + Cloud Logging
 
-**Choice:** Deploy a zonal cluster (`asia-south2-a`) rather than a regional cluster.
+- **Choice**: GMP (`PodMonitoring`) for scraping; Cloud Logging for logs.
+- **Why**: Meets “scraped + queryable” with minimal ops overhead.
+- **Trade-off**: GCP-specific.
 
-**Why:** A regional cluster replicates the control plane across three zones and can run nodes in multiple zones, but the control-plane replication alone triples the management fee from $0.00/hr (zonal Standard) to ~$0.10/hr. For a development/assessment environment with a 24-hour budget constraint, zonal is the pragmatic choice. The module design allows straightforward promotion to regional by changing the `location` parameter from a zone to a region.
+#### 2. Zonal GKE cluster (cost-first)
 
-**Trade-off:** Single zone of failure for both the control plane and nodes. Not suitable for production workloads requiring high availability at the infrastructure level.
+- **Choice**: Zonal cluster (`asia-south2-a`).
+- **Why**: Cheaper; still shows the required patterns.
+- **Trade-off**: Single-zone blast radius.
 
-### 3. Custom Node Service Account with Least Privilege
+#### 3. Custom node service account
 
-**Choice:** Create a dedicated GCP service account for GKE nodes instead of using the default Compute Engine service account.
+- **Choice**: Dedicated node SA, not the default Compute Engine SA.
+- **Why**: Smaller blast radius; explicit permissions.
+- **Trade-off**: More IAM surface area.
 
-**Why:** The default Compute Engine SA has the `Editor` role on the project, which violates least privilege and dramatically increases blast radius if a node is compromised. The custom SA is granted only the five roles it needs: `logging.logWriter`, `monitoring.metricWriter`, `monitoring.viewer`, `stackdriver.resourceMetadata.writer`, and `artifactregistry.reader`. This is a security baseline that any production cluster should have.
+#### 4. Private nodes + outbound via Cloud NAT
 
-**Trade-off:** Slightly more Terraform code and IAM management. If future workloads need additional permissions, roles must be explicitly added.
+- **Choice**: Cloud Router + Cloud NAT for egress.
+- **Why**: Outbound internet without inbound exposure.
+- **Trade-off**: NAT cost.
 
-### 4. Cloud NAT for Private Node Egress
+#### 5. Helm packaging
 
-**Choice:** Private GKE nodes (no public IP) with Cloud NAT for internet-bound traffic.
+- **Choice**: Helm.
+- **Why**: Values-driven config + repeatable deploy/rollback.
+- **Trade-off**: Template overhead.
 
-**Why:** Removing public IPs from nodes eliminates direct inbound internet attack surface. Cloud NAT provides managed, scalable outbound connectivity for pulling images, OS patches, and external API calls. Combined with Private IP Google Access on the subnet, nodes can reach Google APIs without traversing the public internet.
+#### 6. Datapath V2 (eBPF)
 
-**Trade-off:** Cloud NAT has per-GB egress processing costs (~$0.045/GB). For this assessment workload the cost is negligible.
+- **Choice**: `ADVANCED_DATAPATH`.
+- **Why**: Modern default; better scaling than big iptables rule sets.
+- **Trade-off**: Can break legacy iptables assumptions (not relevant here).
 
-### 5. GCP Secret Manager SDK over CSI Driver or External Secrets Operator
+#### 7. Container hardening
 
-**Choice:** The application reads secrets directly from Secret Manager at startup using the official SDK, authenticated via Workload Identity. Secret values are never stored in Kubernetes Secrets, Helm values, or git.
+- **Choice**: Multi-stage build + non-root runtime.
+- **Why**: Smaller image, less attack surface.
+- **Trade-off**: Base image choice can impact native deps (not an issue here).
 
-**Why:** Both the Secrets Store CSI Driver and External Secrets Operator are excellent for large platforms with many services, but they require installing cluster-wide components (a DaemonSet or an operator with CRDs) that add operational overhead disproportionate to a single-service assessment. The direct SDK approach is Google's recommended pattern for GKE workloads with Workload Identity — it treats Secret Manager as the single source of truth, provides automatic authentication with zero stored credentials, and includes built-in audit logging via Cloud Audit Logs.
+#### 8. HA scheduling
 
-**Trade-off:** Each application must include the Secret Manager SDK dependency. In a larger platform with dozens of services, a centralized operator that syncs secrets to Kubernetes would reduce per-service boilerplate at the cost of additional infrastructure.
+- **Choice**: Hard anti-affinity + topology spread.
+- **Why**: Keeps replicas on different nodes.
+- **Trade-off**: Needs enough nodes; after node loss a replica can sit Pending until capacity returns.
 
-### 6. Helm over Plain Manifests or Kustomize
+### Optional / stretch-goal choices (added beyond prompt minimum)
 
-**Choice:** Package the Kubernetes deployment as a Helm chart rather than raw manifests or Kustomize overlays.
+#### 9. Secrets via Secret Manager SDK
 
-**Why:** Helm provides templating, release management, `helm upgrade --install` idempotency, and a clear values-driven configuration surface. It is the most widely adopted packaging format for Kubernetes in production, making it immediately familiar to platform teams. Kustomize would also work but lacks release tracking and rollback capabilities.
+- **Choice**: Read secrets from Secret Manager at startup via Workload Identity.
+- **Why**: No secret values in git/Helm/K8s Secrets; no operator needed.
+- **Trade-off**: Per-service code; operators scale better for many services.
 
-**Trade-off:** Helm adds a client-side dependency and its template syntax can become complex. For a single-service chart this complexity is minimal.
+#### 10. GitHub Actions auth via WIF (OIDC)
+
+- **Choice**: WIF with conditions scoped to repo + environment (`dev`).
+- **Why**: No long-lived credentials; environment gates deployments.
+- **Trade-off**: More setup in GitHub + IAM.
+
+#### 11. Delivery safety
+
+- **Choice**: `helm upgrade --install --atomic` + post-deploy smoke tests.
+- **Why**: Catches rollout failures and bad config.
+- **Trade-off**: Slower; tests only cover what’s probed.
+
+#### 12. Terraform drift detection (read-only)
+
+- **Choice**: Scheduled `terraform plan` using a read-only identity.
+- **Why**: Detects drift without allowing writes.
+- **Trade-off**: More config/credentials plumbing.
 
 ## Estimated GCP Cost (24 Hours)
 
+Based on [GCP pricing](https://cloud.google.com/pricing) for `asia-south2` (Delhi), March 2026.
 
-| Resource                            | Spec                             | Rate                | 24 hr Cost  |
-| ----------------------------------- | -------------------------------- | ------------------- | ----------- |
-| GKE management fee (zonal Standard) | 1 cluster                        | $0.00/hr            | **$0.00**   |
-| Compute Engine (nodes)              | 2 × e2-standard-2 (2 vCPU, 8 GB) | ~$0.067/hr each     | **$3.22**   |
-| Boot disks                          | 2 × 50 GB pd-standard            | ~$0.04/GB/mo        | **$0.13**   |
-| Cloud NAT                           | gateway + minimal egress         | ~$0.045/hr + per-GB | **$1.10**   |
-| Artifact Registry                   | < 1 GB stored                    | ~$0.10/GB/mo        | **< $0.01** |
-| Cloud Logging                       | < 1 GiB ingested (free tier)     | first 50 GiB free   | **$0.00**   |
-| Cloud Monitoring (GMP)              | included with GKE                | included            | **$0.00**   |
-| GCS (state bucket)                  | < 1 MB                           | negligible          | **< $0.01** |
-| **Total**                           |                                  |                     | **~$4.50**  |
+| Resource                            | Spec                              | Rate                                         | 24 hr Cost  |
+| ----------------------------------- | --------------------------------- | -------------------------------------------- | ----------- |
+| GKE management fee (zonal Standard) | 1 cluster                         | $0.10/hr (covered by [$74.40/mo free tier])  | **$0.00**   |
+| Compute Engine (nodes)              | 2 × e2-standard-2 (2 vCPU, 8 GB) | [$0.0811/hr each] in asia-south2             | **$3.89**   |
+| Boot disks                          | 2 × 50 GB pd-standard             | [$0.048/GB/mo] in asia-south2                | **$0.16**   |
+| Cloud NAT                           | gateway (2 VMs, 1 IP) + minimal egress | [$0.0014/VM/hr] + [$0.005/IP/hr] + [$0.045/GiB] | **~$0.19** |
+| Artifact Registry                   | < 1 GB stored                     | [$0.10/GB/mo] (first 0.5 GB free)            | **< $0.01** |
+| Cloud Logging                       | < 1 GiB ingested (free tier)      | [first 50 GiB/mo free]                       | **$0.00**   |
+| Cloud Monitoring (GMP)              | ~2 replicas, low sample rate      | [$0.06/M samples] (first tier); ~$0.00/day at this scale | **~$0.00** |
+| GCS (state bucket)                  | < 1 MB                            | [negligible]                                 | **< $0.01** |
+| Secret Manager                      | 1 secret, minimal access          | [free tier: 6 versions + 10K ops/mo]         | **$0.00**   |
+| **Total**                           |                                   |                                              | **~$4.25 + NAT egress** |
 
+<details>
+<summary>Pricing sources</summary>
 
-> Actual costs may vary slightly by region and real-time pricing. The `asia-south2` region was chosen for proximity; `us-central1` would be ~10% cheaper.
+| Resource | Source |
+|---|---|
+| GKE management fee & free tier | [GKE Pricing](https://cloud.google.com/kubernetes-engine/pricing) |
+| Compute Engine (e2-standard-2) | [VM Instance Pricing](https://cloud.google.com/compute/vm-instance-pricing#e2_sharedcore) — asia-south2 on-demand |
+| Persistent Disk (pd-standard) | [Disk Pricing](https://cloud.google.com/compute/disks-image-pricing#disk) |
+| Cloud NAT | [Cloud NAT Pricing](https://cloud.google.com/nat/pricing) |
+| Artifact Registry | [Artifact Registry Pricing](https://cloud.google.com/artifact-registry/pricing) |
+| Cloud Logging | [Cloud Logging Pricing](https://cloud.google.com/logging/pricing) |
+| Cloud Monitoring | [Cloud Monitoring Pricing](https://cloud.google.com/monitoring/pricing) |
+| Secret Manager | [Secret Manager Pricing](https://cloud.google.com/secret-manager/pricing) |
+
+</details>
+
+Note: `us-central1` is ~20% cheaper for Compute Engine ($0.067/hr vs $0.0811/hr). I used `asia-south2` for proximity.
 
 ## Cleanup
 
@@ -411,8 +433,6 @@ terraform destroy
 
 # Destroy state bucket (optional)
 cd terraform/bootstrap
-terraform destroy \
-  -var="project_id=YOUR_PROJECT_ID" \
-  -var="terraform_state_bucket_name=YOUR_BUCKET_NAME"
+terraform destroy
 ```
 
