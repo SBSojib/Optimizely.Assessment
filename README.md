@@ -51,13 +51,15 @@ Infrastructure-as-code, containerised application deployment, and observability 
 
 ## Prerequisites
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Terraform | >= 1.6 | Infrastructure provisioning |
-| gcloud CLI | latest | GCP authentication, cluster credentials |
-| Docker | latest | Container image build |
-| Helm | >= 3.x | Kubernetes deployment |
-| kubectl | latest | Cluster interaction |
+
+| Tool       | Version | Purpose                                 |
+| ---------- | ------- | --------------------------------------- |
+| Terraform  | >= 1.6  | Infrastructure provisioning             |
+| gcloud CLI | latest  | GCP authentication, cluster credentials |
+| Docker     | latest  | Container image build                   |
+| Helm       | >= 3.x  | Kubernetes deployment                   |
+| kubectl    | latest  | Cluster interaction                     |
+
 
 ## CI/CD
 
@@ -65,12 +67,14 @@ GitHub Actions handles both continuous integration and continuous deployment. No
 
 ### Flow
 
-| Trigger | Workflow | What it does |
-|---------|----------|--------------|
-| Pull request touching `terraform/**` | `terraform-validate.yml` | Check Terraform formatting and run `terraform init -backend=false` + `terraform validate` for the bootstrap and `dev` root modules |
-| Pull request → `master` | `ci.yml` | Build and test the .NET app; build the Docker image (no push); lint and render the Helm chart using `values.yaml.example` |
-| Push to `master` | `deploy.yml` | Build and push the image to Artifact Registry (tagged with `$GITHUB_SHA`); deploy to GKE via Helm; run `/health` and `/hello` auth smoke checks |
-| Schedule / manual dispatch | `terraform-drift.yml` | Run read-only `terraform plan -detailed-exitcode` against the remote state backend to detect out-of-band changes |
+
+| Trigger                              | Workflow                 | What it does                                                                                                                                    |
+| ------------------------------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pull request touching `terraform/**` | `terraform-validate.yml` | Check Terraform formatting and run `terraform init -backend=false` + `terraform validate` for the bootstrap and `dev` root modules              |
+| Pull request → `master`              | `ci.yml`                 | Build and test the .NET app; build the Docker image (no push); lint and render the Helm chart using `values.yaml.example`                       |
+| Push to `master`                     | `deploy.yml`             | Build and push the image to Artifact Registry (tagged with `$GITHUB_SHA`); deploy to GKE via Helm; run `/health` and `/hello` auth smoke checks |
+| Schedule / manual dispatch           | `terraform-drift.yml`    | Run read-only `terraform plan -detailed-exitcode` against the remote state backend to detect out-of-band changes                                |
+
 
 ```
 PR opened / updated
@@ -86,47 +90,55 @@ The CD workflow uses `google-github-actions/auth` with a WIF provider and servic
 
 ### GitHub Environment: `dev`
 
-The CD workflow targets the GitHub Environment named **`dev`**. Variables and secrets must be configured there.
+The CD workflow targets the GitHub Environment named `**dev**`. Variables and secrets must be configured there.
 
-**Variables** (`vars.*`)
+**Variables** (`vars.`*)
 
-| Name | Example value |
-|------|---------------|
-| `GCP_PROJECT_ID` | `skynet-2026-code-test-sojib` |
-| `GCP_REGION` | `asia-south2` |
-| `GKE_CLUSTER` | `opti-devops-gke` |
-| `GKE_LOCATION` | `asia-south2-a` |
-| `ARTIFACT_REGISTRY_REPO` | `asia-south2-docker.pkg.dev/…/hello-service` |
-| `K8S_NAMESPACE` | `hello-app` |
-| `HELM_RELEASE` | `hello-service` |
+
+| Name                     | Example value                                                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `GCP_PROJECT_ID`         | `skynet-2026-code-test-sojib`                                                                                    |
+| `GCP_REGION`             | `asia-south2`                                                                                                    |
+| `GKE_CLUSTER`            | `opti-devops-gke`                                                                                                |
+| `GKE_LOCATION`           | `asia-south2-a`                                                                                                  |
+| `ARTIFACT_REGISTRY_REPO` | `asia-south2-docker.pkg.dev/…/hello-service`                                                                     |
+| `K8S_NAMESPACE`          | `hello-app`                                                                                                      |
+| `HELM_RELEASE`           | `hello-service`                                                                                                  |
 | `HELLO_SERVICE_KSA_NAME` | Kubernetes service account name used by the deployment (must match `hello_service_service_account` in Terraform) |
 
-**Secrets** (`secrets.*`)
 
-| Name | Description |
-|------|-------------|
-| `WORKLOAD_IDENTITY_PROVIDER` | Full WIF provider resource name |
-| `GCP_SERVICE_ACCOUNT` | GSA email that GitHub Actions impersonates for GCP operations |
-| `HELLO_SERVICE_GSA_EMAIL` | Runtime GSA email annotated onto the Kubernetes `ServiceAccount` |
-| `HELLO_SERVICE_API_KEY` | API key for `/hello` — same value as stored in Secret Manager for `hello-svc-api-key`. Used by the CD smoke test to verify authenticated /hello returns 200. |
+**Secrets** (`secrets.`*)
+
+
+| Name                         | Description                                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `WORKLOAD_IDENTITY_PROVIDER` | Full WIF provider resource name                                                                                                                              |
+| `GCP_SERVICE_ACCOUNT`        | GSA email that GitHub Actions impersonates for GCP operations                                                                                                |
+| `HELLO_SERVICE_GSA_EMAIL`    | Runtime GSA email annotated onto the Kubernetes `ServiceAccount`                                                                                             |
+| `HELLO_SERVICE_API_KEY`      | API key for `/hello` — same value as stored in Secret Manager for `hello-svc-api-key`. Used by the CD smoke test to verify authenticated /hello returns 200. |
+
 
 ### Drift Detection Setup
 
 The scheduled drift workflow reuses the same GitHub Environment (`dev`) and requires a few additional settings.
 
-**Variables** (`vars.*`)
+**Variables** (`vars.`*)
 
-| Name | Description |
-|------|-------------|
-| `TF_STATE_BUCKET` | GCS bucket that stores Terraform remote state |
+
+| Name              | Description                                                    |
+| ----------------- | -------------------------------------------------------------- |
+| `TF_STATE_BUCKET` | GCS bucket that stores Terraform remote state                  |
 | `TF_STATE_PREFIX` | Object prefix used by the `terraform/environments/dev` backend |
 
-**Secrets** (`secrets.*`)
 
-| Name | Description |
-|------|-------------|
-| `DRIFT_GCP_SERVICE_ACCOUNT` | Read-only drift-detection service account email from Terraform output |
-| `TF_VARS` | Combined HCL content of the `common`, `networking`, `gke`, `apps`, `secrets`, `github_oidc`, and `alerting` `*.auto.tfvars` files |
+**Secrets** (`secrets.`*)
+
+
+| Name                        | Description                                                                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `DRIFT_GCP_SERVICE_ACCOUNT` | Read-only drift-detection service account email from Terraform output                                                             |
+| `TF_VARS`                   | Combined HCL content of the `common`, `networking`, `gke`, `apps`, `secrets`, `github_oidc`, and `alerting` `*.auto.tfvars` files |
+
 
 ## End-to-End Setup
 
@@ -149,17 +161,13 @@ The GCS backend bucket must exist before Terraform can use it. The bootstrap mod
 
 Copy `terraform.tfvars.example` to a real `terraform.tfvars`, fill in your actual values there, and do not commit that file. The real `*.tfvars` files are intentionally gitignored.
 
+**Note on tfvars loading:** Terraform automatically loads `terraform.tfvars` and any `*.auto.tfvars` files from the current working directory. If you create `terraform/bootstrap/terraform.tfvars`, you can run `terraform plan` / `terraform apply` without `-var=...`. The explicit `-var` flags below are an alternative for one-off runs.
+
 ```bash
 cd terraform/bootstrap
-
 terraform init
-terraform plan \
-  -var="project_id=YOUR_PROJECT_ID" \
-  -var="terraform_state_bucket_name=YOUR_BUCKET_NAME"
-
-terraform apply \
-  -var="project_id=YOUR_PROJECT_ID" \
-  -var="terraform_state_bucket_name=YOUR_BUCKET_NAME"
+terraform plan
+terraform apply 
 ```
 
 ### Step 2 — Provision Infrastructure
@@ -201,54 +209,45 @@ printf "your-actual-api-key-value" | \
 
 The hello-service reads these secrets at startup via the GCP Secret Manager SDK, authenticated automatically through Workload Identity. No JSON keys or Kubernetes Secrets are involved. See [docs/secrets-management.md](docs/secrets-management.md) for the full design.
 
-**Deploying the secrets-management changes (summary)**
+**Note:** Once secrets are populated, the **CI/CD deploy path** (merge to `master` via PR after CI and Terraform validation pass) will roll out new pods that load the secret at startup and protect `/hello` with that API key.
 
-1. **Terraform** — Copy the example tfvars, then apply so Secret Manager secret shells and IAM exist:
-   ```bash
-   cp terraform/environments/dev/secrets.auto.tfvars.example terraform/environments/dev/secrets.auto.tfvars
-   cd terraform/environments/dev && terraform apply
-   ```
-2. **Populate secret values** — One-time, outside git (use your own value for the key):
-   ```bash
-   printf "your-chosen-api-key-value" | \
-     gcloud secrets versions add hello-svc-api-key --project=YOUR_PROJECT_ID --data-file=-
-   ```
-3. **Deploy the app** — Push to `master`; the GitHub CD workflow already deploys with `secrets.enabled=true` and `secrets.refs.API_KEY=hello-svc-api-key`. No manual Helm needed. New pods will load the secret at startup and protect `/hello` with that API key.
+### Step 4 — Deploy the Application via CI/CD
 
-### Step 4 — Build and Push the Container Image
+Deployment is done only through CI/CD. Before the first deploy, create the GitHub Environment **`dev`** (Settings → Environments → New environment) and add the following **variables** and **secrets**. All of them are used by the workflows that target `dev` (CD and optional drift detection).
 
-```bash
-cd app
+**Variables** (Settings → Environments → `dev` → Environment variables):
 
-IMAGE=YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/YOUR_REPO_NAME/hello-service
-TAG=v1
 
-gcloud auth configure-docker YOUR_REGION-docker.pkg.dev
+| Name                     | Used by | Description                                                                                           |
+| ------------------------ | ------- | ----------------------------------------------------------------------------------------------------- |
+| `GCP_PROJECT_ID`         | Deploy  | GCP project ID                                                                                        |
+| `GCP_REGION`             | Deploy  | Region (e.g. `asia-south2`)                                                                           |
+| `GKE_CLUSTER`            | Deploy  | GKE cluster name                                                                                      |
+| `GKE_LOCATION`           | Deploy  | Cluster location — zone (e.g. `asia-south2-a`) or region                                              |
+| `ARTIFACT_REGISTRY_REPO` | Deploy  | Full image repo path (e.g. `asia-south2-docker.pkg.dev/PROJECT_ID/REPO_NAME/hello-service`)           |
+| `K8S_NAMESPACE`          | Deploy  | Kubernetes namespace (e.g. `hello-app`)                                                               |
+| `HELM_RELEASE`           | Deploy  | Helm release name (e.g. `hello-service`)                                                              |
+| `HELLO_SERVICE_KSA_NAME` | Deploy  | Kubernetes service account name for the app (must match `hello_service_service_account` in Terraform) |
+| `TF_STATE_BUCKET`        | Drift   | GCS bucket that stores Terraform remote state                                                         |
+| `TF_STATE_PREFIX`        | Drift   | Object prefix for the `terraform/environments/dev` backend (e.g. `env/dev`)                           |
 
-docker build -t ${IMAGE}:${TAG} .
-docker push ${IMAGE}:${TAG}
-```
 
-### Step 5 — Connect to the Cluster
+**Secrets** (Settings → Environments → `dev` → Environment secrets):
 
-```bash
-gcloud container clusters get-credentials YOUR_CLUSTER_NAME \
-  --zone YOUR_ZONE \
-  --project YOUR_PROJECT_ID
-```
 
-### Step 6 — Deploy with Helm
+| Name                         | Used by       | Description                                                                                                                       |
+| ---------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `WORKLOAD_IDENTITY_PROVIDER` | Deploy, Drift | Full Workload Identity Federation provider resource name (from Terraform / IAM)                                                   |
+| `GCP_SERVICE_ACCOUNT`        | Deploy        | GCP service account email that GitHub Actions impersonates for build/deploy                                                       |
+| `HELLO_SERVICE_GSA_EMAIL`    | Deploy        | Runtime GSA email annotated on the Kubernetes ServiceAccount (e.g. from `terraform output hello_service_gsa_email`)               |
+| `HELLO_SERVICE_API_KEY`      | Deploy        | API key for `/hello` — same value as in Secret Manager (`hello-svc-api-key`). Used by the CD smoke test.                          |
+| `DRIFT_GCP_SERVICE_ACCOUNT`  | Drift         | Read-only drift-detection service account email (from Terraform output)                                                           |
+| `TF_VARS`                    | Drift         | Combined HCL content of the `common`, `networking`, `gke`, `apps`, `secrets`, `github_oidc`, and `alerting` `*.auto.tfvars` files |
 
-```bash
-helm upgrade --install hello-service helm/hello-service \
-  -f helm/hello-service/values.yaml.example \
-  --set global.projectId=YOUR_PROJECT_ID \
-  --set serviceAccount.gcpServiceAccount=${HELLO_SERVICE_GSA} \
-  --set image.tag=${TAG} \
-  --wait
-```
 
-### Step 7 — Verify the Deployment
+Once the **Deploy** variables and secrets are set, open a **pull request** to `master`. CI (`ci.yml`) and Terraform validation (`terraform-validate.yml`) run on the PR; do not push directly to `master` (it's restricted anyway). After the PR is merged, the `deploy.yml` workflow runs: it builds + pushes the image (tagged with `$GITHUB_SHA`), deploys via Helm, and runs authenticated smoke tests. Add the **Drift** entries if you use the scheduled Terraform drift workflow. Full reference: [GitHub Environment: `dev`](#github-environment-dev).
+
+### Step 5 — Verify the Deployment
 
 ```bash
 # Check pods are running (expect 2 pods, 1/1 Ready, on separate nodes)
@@ -284,36 +283,52 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/hello
 curl http://localhost:8080/metrics | grep hello_service_http_requests_total
 ```
 
-### Step 8 — Verify Observability
+### Step 6 — Verify Observability
 
-**Metrics (GMP):**
-
-```bash
-# Confirm PodMonitoring is deployed
-kubectl get podmonitoring -n hello-app
-```
-
-In GCP Console: Monitoring -> Metrics Explorer -> Resource type "Prometheus Target" -> Metric `prometheus.googleapis.com/hello_service_http_requests_total/counter`.
+All verification below is **CLI-only** (no UI/Console required).
 
 **Logs (Cloud Logging):**
 
-```bash
-# Get a trace_id from a successful /hello request (include API key if secrets are enabled)
-TRACE_ID=$(curl -s -H "Authorization: Bearer YOUR_API_KEY_VALUE" http://localhost:8080/hello | python3 -c "import sys,json; print(json.load(sys.stdin)['traceId'])")
+Use the **actual** API key value (the one you stored in Secret Manager for `hello-svc-api-key`). If you use a placeholder or wrong key, `/hello` returns 401 and the response body has no `traceId`, so the one-liner below will fail with `KeyError: 'traceId'`.
 
-# Query Cloud Logging for that trace_id
+**If Cloud Logging returns `[]`:** Logs from GKE can take 1–2 minutes to appear. If the **broad** query below also returns `[]`, then container logs from `hello-app` are not visible in Cloud Logging for your current identity (check GKE logging configuration and IAM: the identity needs permission to read log entries, e.g. `roles/logging.viewer` or `logging.logEntries.list`). You can still verify that the app emits the expected log line using **kubectl** (see fallback below).
+
+```bash
+# Optional: confirm recent logs from hello-app are visible in Cloud Logging (no trace filter)
+gcloud logging read \
+  'resource.type="k8s_container" AND resource.labels.namespace_name="hello-app"' \
+  --project=YOUR_PROJECT_ID --limit=5 --freshness=5m --format=json
+
+# Replace YOUR_ACTUAL_API_KEY with the value from Secret Manager (hello-svc-api-key)
+TRACE_ID=$(curl -s -H "Authorization: Bearer YOUR_ACTUAL_API_KEY" http://localhost:8080/hello | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('traceId','') or d.get('trace_id','') or sys.exit('No traceId in response (check API key and that /hello returned 200)'))")
+
+# Query Cloud Logging for that trace_id (if you get [], wait 1–2 min and retry; or use kubectl fallback below)
 gcloud logging read \
   "resource.type=\"k8s_container\" AND resource.labels.namespace_name=\"hello-app\" AND jsonPayload.trace_id=\"${TRACE_ID}\"" \
   --project=YOUR_PROJECT_ID \
   --limit=5 --format=json
 ```
 
-Or in Logs Explorer:
+**Fallback — verify log line with kubectl (no Cloud Logging required):** After calling `/hello`, confirm the app emitted a log line containing `trace_id`. With multiple replicas, the request is handled by one pod; use that pod’s name from the response so the log line isn’t lost in the aggregated stream. Run these one after the other (or copy the full block):
 
+```bash
+HELLO_RESP=$(curl -s -H "X-API-Key: YOUR_ACTUAL_API_KEY" http://localhost:8080/hello)
+POD=$(echo "$HELLO_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('podName',''))")
+kubectl logs -n hello-app "$POD" --tail=30 | grep -E '"trace_id"|hello_request_handled'
 ```
-resource.type="k8s_container"
-resource.labels.namespace_name="hello-app"
-jsonPayload.trace_id="<YOUR_TRACE_ID>"
+
+**Metrics (GCP Managed Prometheus via Cloud Monitoring API):**
+
+The `gcloud` CLI does not expose a `time-series list` subcommand. Use the Cloud Monitoring REST API with an access token:
+
+```bash
+# Replace YOUR_PROJECT_ID. Uses current gcloud credentials.
+TOKEN=$(gcloud auth print-access-token)
+PROJECT=YOUR_PROJECT_ID
+end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+start=$(date -u -d '30 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
+curl -s -H "Authorization: Bearer ${TOKEN}" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT}/timeSeries?filter=metric.type%3D%22prometheus.googleapis.com%2Fhello_service_http_requests_total%2Fcounter%22&interval.startTime=${start}&interval.endTime=${end}&view=FULL&pageSize=10"
 ```
 
 ## Architecture Decisions
@@ -368,17 +383,19 @@ jsonPayload.trace_id="<YOUR_TRACE_ID>"
 
 ## Estimated GCP Cost (24 Hours)
 
-| Resource | Spec | Rate | 24 hr Cost |
-|----------|------|------|------------|
-| GKE management fee (zonal Standard) | 1 cluster | $0.00/hr | **$0.00** |
-| Compute Engine (nodes) | 2 × e2-standard-2 (2 vCPU, 8 GB) | ~$0.067/hr each | **$3.22** |
-| Boot disks | 2 × 50 GB pd-standard | ~$0.04/GB/mo | **$0.13** |
-| Cloud NAT | gateway + minimal egress | ~$0.045/hr + per-GB | **$1.10** |
-| Artifact Registry | < 1 GB stored | ~$0.10/GB/mo | **< $0.01** |
-| Cloud Logging | < 1 GiB ingested (free tier) | first 50 GiB free | **$0.00** |
-| Cloud Monitoring (GMP) | included with GKE | included | **$0.00** |
-| GCS (state bucket) | < 1 MB | negligible | **< $0.01** |
-| **Total** | | | **~$4.50** |
+
+| Resource                            | Spec                             | Rate                | 24 hr Cost  |
+| ----------------------------------- | -------------------------------- | ------------------- | ----------- |
+| GKE management fee (zonal Standard) | 1 cluster                        | $0.00/hr            | **$0.00**   |
+| Compute Engine (nodes)              | 2 × e2-standard-2 (2 vCPU, 8 GB) | ~$0.067/hr each     | **$3.22**   |
+| Boot disks                          | 2 × 50 GB pd-standard            | ~$0.04/GB/mo        | **$0.13**   |
+| Cloud NAT                           | gateway + minimal egress         | ~$0.045/hr + per-GB | **$1.10**   |
+| Artifact Registry                   | < 1 GB stored                    | ~$0.10/GB/mo        | **< $0.01** |
+| Cloud Logging                       | < 1 GiB ingested (free tier)     | first 50 GiB free   | **$0.00**   |
+| Cloud Monitoring (GMP)              | included with GKE                | included            | **$0.00**   |
+| GCS (state bucket)                  | < 1 MB                           | negligible          | **< $0.01** |
+| **Total**                           |                                  |                     | **~$4.50**  |
+
 
 > Actual costs may vary slightly by region and real-time pricing. The `asia-south2` region was chosen for proximity; `us-central1` would be ~10% cheaper.
 
@@ -398,3 +415,4 @@ terraform destroy \
   -var="project_id=YOUR_PROJECT_ID" \
   -var="terraform_state_bucket_name=YOUR_BUCKET_NAME"
 ```
+
