@@ -1,6 +1,6 @@
 # Phase 2 — Application Build & Deploy
 
-Minimal HTTP service (`hello-service`) built with ASP.NET Core 8, containerised and deployed to GKE via Helm.
+This is the small HTTP service (`hello-service`) built with ASP.NET Core 8. It’s containerized and deployed to GKE using the Helm chart in `helm/hello-service`.
 
 ## Prerequisites
 

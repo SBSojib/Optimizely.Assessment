@@ -1,6 +1,6 @@
 # Terraform — GCP Infrastructure (Phase 1)
 
-This repository provisions the foundational GCP infrastructure for the Optimizely DevOps assessment.
+This folder contains the Terraform I used to provision the baseline GCP infrastructure for the assessment (networking, GKE, IAM, state bucket, and a few supporting services).
 
 ## Architecture Overview
 
@@ -188,7 +188,7 @@ available:
 | `subnet_name`                  | Name of the GKE subnet                     |
 | `alert_notification_channel`   | Cloud Monitoring notification channel      |
 
-**Alerting:** Set `alert_notification_email` in `alerting.auto.tfvars`; after apply, verify the email channel in **Monitoring → Alerting → Edit notification channels** so notifications are delivered.
+**Alerting:** Set `alert_notification_email` in `alerting.auto.tfvars`; after apply, verify the email channel in **Monitoring > Alerting > Edit notification channels** so notifications are delivered.
 
 ## Cleanup
 

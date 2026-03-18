@@ -1,6 +1,6 @@
 # Phase 3 — Observability
 
-This document describes how `hello-service` is instrumented for metrics and logging in GKE, using GCP-native managed services.
+This is how I wired up `hello-service` for metrics and logs on GKE, using GCP-managed services.
 
 ## Architecture overview
 
@@ -72,7 +72,7 @@ Alerting is implemented as a Terraform module (`terraform/modules/alerting/`) an
 | **Service Availability** | No running containers (uptime) for 5 min | Detects loss of available application instances |
 | **Error Log Rate** | Error logs (severity ≥ ERROR) > 5 in 5 min | Application exceptions, dependency failures |
 
-**Setup:** Configure `alert_notification_email` in `terraform/environments/dev/alerting.auto.tfvars`, then run `terraform apply` in `terraform/environments/dev`. After apply, verify the email channel in **Monitoring → Alerting → Edit notification channels** so notifications are delivered.
+**Setup:** Configure `alert_notification_email` in `terraform/environments/dev/alerting.auto.tfvars`, then run `terraform apply` in `terraform/environments/dev`. After apply, verify the email channel in **Monitoring > Alerting > Edit notification channels** so notifications are delivered.
 
 ### Verify metrics are available
 
@@ -83,9 +83,9 @@ kubectl port-forward svc/hello-service -n hello-app 8080:80
 curl http://localhost:8080/metrics | grep hello_service_http_requests_total
 ```
 
-2. **Query in GCP Console (Cloud Monitoring → Metrics Explorer):**
+2. **Query in GCP Console (Cloud Monitoring > Metrics Explorer):**
 
-   - Go to **Monitoring → Metrics Explorer**
+   - Go to **Monitoring > Metrics Explorer**
    - Select resource type: **Prometheus Target**
    - Metric: `prometheus.googleapis.com/hello_service_http_requests_total/counter`
    - Filter by namespace: `hello-app`
@@ -131,7 +131,7 @@ Framework logs (startup, errors) are also JSON-formatted via ASP.NET Core's `Add
 
 **GCP Console — Logs Explorer:**
 
-Navigate to **Logging → Logs Explorer** and run:
+Navigate to **Logging > Logs Explorer** and run:
 
 ```
 resource.type="k8s_container"
@@ -194,7 +194,7 @@ kubectl get podmonitoring -n hello-app
 
 **Check metric in Cloud Monitoring:**
 
-1. Open **Monitoring → Metrics Explorer**
+1. Open **Monitoring > Metrics Explorer**
 2. Resource type: **Prometheus Target**
 3. Metric: `prometheus.googleapis.com/hello_service_http_requests_total/counter`
 4. Group by: `endpoint` to see per-path breakdown
