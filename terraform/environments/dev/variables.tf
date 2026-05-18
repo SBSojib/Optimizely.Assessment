@@ -136,7 +136,7 @@ variable "github_owner" {
 }
 
 variable "github_repository" {
-  description = "GitHub repository name, without the owner prefix (e.g., Optimizely.Assessment)"
+  description = "GitHub repository name, without the owner prefix (e.g., your-repo-name)"
   type        = string
 }
 

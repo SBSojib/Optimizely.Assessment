@@ -1,6 +1,6 @@
-# Optimizely DevOps Take-Home Assessment
+# GCP DevOps Lab
 
-Submission for the Optimizely DevOps take-home. Includes Terraform for GCP/GKE, a small ASP.NET Core service (containerized), a Helm chart, and basic observability (metrics + logs).
+A GCP/GKE platform demo with Terraform for networking and cluster infrastructure, a containerized ASP.NET Core service, a Helm chart, and basic observability (metrics and logs).
 
 ## Architecture Overview
 

@@ -3,10 +3,10 @@ replicaCount: 2
 namespace: hello-app
 
 global:
-  projectId: skynet-2026-code-test-sojib
+  projectId: your-project-id
 
 image:
-  repository: asia-south2-docker.pkg.dev/skynet-2026-code-test-sojib/opti-devops-docker/hello-service
+  repository: asia-south2-docker.pkg.dev/your-project-id/your-naming-prefix-docker/hello-service
   tag: v1
   pullPolicy: IfNotPresent
 
@@ -15,7 +15,7 @@ serviceAccount:
   name: hello-service-sa
   workloadIdentity:
     enabled: true
-  gcpServiceAccountName: opti-devops-hello-svc
+  gcpServiceAccountName: your-naming-prefix-hello-svc
   # Optional full email override when the GSA name or project differs.
   gcpServiceAccount: ""
 
