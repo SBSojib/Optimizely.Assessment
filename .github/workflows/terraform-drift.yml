@@ -15,7 +15,7 @@
 #   WORKLOAD_IDENTITY_PROVIDER  – WIF provider (same as deploy; no separate drift provider)
 #
 # Secrets (drift-only; set from terraform output after apply):
-#   DRIFT_GCP_SERVICE_ACCOUNT   – Email of the drift SA (e.g. opti-dev-gh-drift@PROJECT.iam.gserviceaccount.com)
+#   DRIFT_GCP_SERVICE_ACCOUNT   – Email of the drift SA (e.g. your-naming-prefix-gh-drift@PROJECT.iam.gserviceaccount.com)
 #
 # Secrets (tfvars for plan):
 #   TF_VARS  – combined HCL content of the gitignored *.auto.tfvars files

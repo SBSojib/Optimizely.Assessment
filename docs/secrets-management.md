@@ -12,7 +12,7 @@ Secret values (API keys, connection strings, etc.) are stored in **GCP Secret Ma
 │                                                                  │
 │  Secret Manager                                                  │
 │  ┌─────────────────────┐     IAM: secretAccessor                 │
-│  │ hello-svc-api-key   │◄──── opti-devops-hello-svc (GSA)        │
+│  │ hello-svc-api-key   │◄──── your-naming-prefix-hello-svc (GSA)   │
 │  │ (value set via CLI) │                  ▲                      │
 │  └─────────────────────┘                  │ Workload Identity    │
 │                                           │                      │

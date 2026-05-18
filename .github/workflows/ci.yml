@@ -58,13 +58,13 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Restore dependencies
-        run: dotnet restore Optimizely.Assessment.sln
+        run: dotnet restore GcpDevOpsLab.sln
 
       - name: Build
-        run: dotnet build Optimizely.Assessment.sln --no-restore --configuration Release
+        run: dotnet build GcpDevOpsLab.sln --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test Optimizely.Assessment.sln --no-build --configuration Release --logger "console;verbosity=normal"
+        run: dotnet test GcpDevOpsLab.sln --no-build --configuration Release --logger "console;verbosity=normal"
 
   # ── Job 2: Validate the Dockerfile compiles cleanly (no push) ─────────────────
   docker:
